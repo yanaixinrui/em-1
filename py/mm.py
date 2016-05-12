@@ -24,7 +24,7 @@ class Mm():
     """ 
     """
 
-    def __init__(self, point_list): 
+    def __init__(self, point_list=[]): 
         self.X = np.matrix(point_list,copy = True) # X[i,point]
         self.n,self.d = self.X.shape 
     
@@ -56,7 +56,26 @@ class TestCrf(unittest.TestCase):
         m = Mm(a)
         print(m)
     
+    def test_simple(self):
+        load = 
+        with open("points.dat") as f:
+            for line in f:
+                sline = line.split(" ")
+                preamble = sline[0].split("_")
         
+                if preamble[0] == 'T':
+                    cur_tag_i  = self.t2i[preamble[1]]
+                    next_tag_i = self.t2i[preamble[2]]
+                    self.T[cur_tag_i,next_tag_i] = float(sline[1]) 
+        
+                elif preamble[0] == 'E':
+                    tag_i  = self.t2i[preamble[1]]
+                    word_i = self.w2i[preamble[2]]
+                    self.E[word_i,tag_i] = float(sline[1]) 
+                
+                else:  
+                    assert(True), "ERROR: unknown weight file entry" 
+        m = Mm()
 
     def tearDown(self):
         """ runs after each test """
