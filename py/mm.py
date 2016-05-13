@@ -7,9 +7,12 @@ Classes to implement Gaussian mixture model with EM
 ------------------------------------------------------------------------------
 """
 import numpy as np
-import itertools # for product
-import sys        # for sys.float_info.max
-from collections import defaultdict
+
+#import itertools # for product
+#import sys        # for sys.float_info.max
+#from collections import defaultdict
+
+import matplotlib.pyplot as plt
 import unittest
 
 try:
@@ -34,7 +37,12 @@ class Mm():
             s += "\n  " + str(point)
         return s
     
-
+    def find_means(self, n_means):
+        means = np.zeros((n_means,self.d))
+                       
+        return means
+        
+    
 #============================================================================
 class TestCrf(unittest.TestCase):
     """ Self testing of each method """
@@ -56,26 +64,23 @@ class TestCrf(unittest.TestCase):
         m = Mm(a)
         print(m)
     
+    #@unittest.skip
     def test_simple(self):
-        load = 
         with open("points.dat") as f:
+            data_mat = []
             for line in f:
-                sline = line.split(" ")
-                preamble = sline[0].split("_")
+                sline = line.split()
+                assert(len(sline) == 2)
+                data_mat.append(sline)
+        mm = Mm(data_mat)
         
-                if preamble[0] == 'T':
-                    cur_tag_i  = self.t2i[preamble[1]]
-                    next_tag_i = self.t2i[preamble[2]]
-                    self.T[cur_tag_i,next_tag_i] = float(sline[1]) 
-        
-                elif preamble[0] == 'E':
-                    tag_i  = self.t2i[preamble[1]]
-                    word_i = self.w2i[preamble[2]]
-                    self.E[word_i,tag_i] = float(sline[1]) 
-                
-                else:  
-                    assert(True), "ERROR: unknown weight file entry" 
-        m = Mm()
+        plt.scatter(mm.X[:,0],mm.X[:,1])
+        means = mm.find_means(2)
+        print(means)
+        plt.plot(means[:,0],means[:,1], 'ro')
+        plt.show()
+        print(mm)
+        pause = input("press enter when done")
 
     def tearDown(self):
         """ runs after each test """
