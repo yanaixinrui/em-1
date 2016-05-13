@@ -27,8 +27,8 @@ class Mm():
     """ 
     """
 
-    def __init__(self, point_list=[]): 
-        self.X = np.matrix(point_list,copy = True) # X[i,point]
+    def __init__(self, point_list=[[]]): 
+        self.X = np.matrix(point_list,copy = True,dtype=float) # X[i,point]
         self.n,self.d = self.X.shape 
     
     def __str__(self):
@@ -38,7 +38,18 @@ class Mm():
         return s
     
     def find_means(self, n_means):
-        means = np.zeros((n_means,self.d))
+
+        # initialize
+        maxes = self.X.max(axis=0) # ndarray [d]
+        mins = self.X.min(axis=0)  # ndarray [d]
+        ranges = maxes-mins
+        # Q: determine whether numpy compiles below statements into single cmd?
+        means = np.random.rand(n_means,self.d) # [nm x d] mat
+        means = np.multiply(ranges, means) # [d] *. [nm x d] 
+        means = means + mins.T # [nm x d] + [1 x d]
+
+        # calculate counts
+        
                        
         return means
         
@@ -77,10 +88,11 @@ class TestCrf(unittest.TestCase):
         plt.scatter(mm.X[:,0],mm.X[:,1])
         means = mm.find_means(2)
         print(means)
-        plt.plot(means[:,0],means[:,1], 'ro')
+        plt.scatter(means[:,0],means[:,1],s=300,c='r')
         plt.show()
+        #plt.draw()
         print(mm)
-        pause = input("press enter when done")
+        #pause = input("press enter when done")
 
     def tearDown(self):
         """ runs after each test """
@@ -93,4 +105,10 @@ class TestCrf(unittest.TestCase):
 #============================================================================
 if __name__ == '__main__':
     unittest.main()
+    
+    
+# 11:00
+# 2:40 
+
+
        
