@@ -14,6 +14,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 import unittest
+import time
 
 try:
     from scipy.misc  import logsumexp
@@ -30,6 +31,8 @@ class Mm():
     def __init__(self, point_list=[[]]): 
         self.X = np.matrix(point_list,copy = True, dtype=float) # X[i,point]
         self.n,self.d = self.X.shape 
+        #self.n_means = 1
+        #self.means = np.mat(np.zeros((n_means, self.d),float))
     
     def __str__(self):
         s = "mm data: (N = " + str(self.n) + ", D = " + str(self.d) +")"
@@ -50,9 +53,7 @@ class Mm():
         means = np.multiply(ranges, means) # [d] *. [nm x d] 
         means = means + mins # [nm x d] + [1 x d]
         
-        plt.scatter(np.asarray(self.X[:,0]), np.asarray(self.X[:,1]))
-        plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
-        plt.show()
+        self.plot_means(means)
 
         for iter in range(n_iter):
             # given the current means, calculate counts for each
@@ -77,13 +78,19 @@ class Mm():
             new_means = point_sum / count_of_each_mean 
             means = new_means
             print(means)
-            plt.scatter(np.asarray(self.X[:,0]), np.asarray(self.X[:,1]))
-            plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
-            plt.show()
+            self.plot_means(means)
 
         return new_means
         
+    def plot_means(self, means):
+        plt.clf()
+        plt.scatter(np.asarray(self.X[:,0]), np.asarray(self.X[:,1]))
+        plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
+        #plt.show()
+        #plt.draw()
+        plt.pause(0.05)
     
+
 #============================================================================
 class TestCrf(unittest.TestCase):
     """ Self testing of each method """
@@ -110,15 +117,14 @@ class TestCrf(unittest.TestCase):
         print("\n...test_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
         mm = Mm(data_mat)
-        print(mm)
+        #print(mm)
         
         means = mm.k_means(2)
-        print(means)
-        plt.scatter(np.asarray(mm.X[:,0]), np.asarray(mm.X[:,1]))
-        plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
-        plt.show()
-        print(mm)
-    
+        #print(means)
+        #mm.plot_means(means)
+        
+        self.assertTrue(((means[0,0] == 1.05) and (means[0,1] == 1.05)) or \
+                   ((means[1,0] == 1.05) and (means[1,1] == 1.05)) )
     #@unittest.skip
     def test_load(self):
         with open("points.dat") as f:
@@ -131,9 +137,7 @@ class TestCrf(unittest.TestCase):
         
         means = mm.k_means(4,10)
         print(means)
-        plt.scatter(np.asarray(mm.X[:,0]), np.asarray(mm.X[:,1]))
-        plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
-        plt.show()
+        mm.plot_means(means)
         print(mm)
 
 
