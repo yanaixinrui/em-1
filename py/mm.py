@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import unittest
 import time
+from scipy.stats import multivariate_normal
 
 try:
     from scipy.misc  import logsumexp
@@ -29,7 +30,7 @@ class Mm():
     """
 
     def __init__(self, point_list=[[]]): 
-        self.X = np.matrix(point_list,copy = True, dtype=float) # X[i,point]
+        self.X = np.array(point_list,copy = True, dtype=float) # X[i,point]
         self.n,self.d = self.X.shape 
         #self.n_means = 1
         #self.means = np.mat(np.zeros((n_means, self.d),float))
@@ -43,6 +44,8 @@ class Mm():
     def k_means(self, n_means, n_iter=2):
         """ Lloyd's algorithm for solving k-means """
         
+        # TODO: handle zero counts
+        
         # initialize
         maxes = self.X.max(axis=0) # ndarray [d]
         mins = self.X.min(axis=0)  # ndarray [d]
@@ -50,26 +53,28 @@ class Mm():
         
         # Q: determine whether numpy compiles below statements into single cmd?
         means = np.random.rand(n_means,self.d) # [nm x d] mat
-        means = np.multiply(ranges, means) # [d] *. [nm x d] 
-        means = means + mins # [nm x d] + [1 x d]
+        means = means * ranges # [nm x d] * [d] 
+        means = means + mins # [nm x d] + [d]
         
         self.plot_means(means)
 
         for i in range(n_iter):
             # given the current means, calculate counts for each
-            count_of_each_mean = np.zeros((n_means,1), dtype=float)
-            point_sum = np.mat(np.zeros((n_means,self.d), dtype=float))
+            count_of_each_mean = np.zeros(n_means, dtype=float)
+            point_sum = np.zeros((n_means,self.d), dtype=float)
             
+            # TODO: vectorize this for loop
             for point in self.X: # point is a row [1 x 2]
                 # the "probability mass" is just inverse distance sq
                 difference =  (means - point)          # [nm x d] - [1 x d]
-                dist_sq = np.sum(np.multiply(difference, difference), axis=1)
+                dist_sq = np.sum((difference * difference), axis=1)
                 prob_mass = np.reciprocal(dist_sq)  # [2 x 1]
                 max_mean_i = np.argmax(prob_mass)
                 count_of_each_mean[max_mean_i] += 1 
                 point_sum[max_mean_i] += point
                     
-            #          [n_means x d] / [n_means x 1]
+            
+            #          [n_means x d] / [n_means]
             new_means = point_sum / count_of_each_mean 
             means = new_means
             self.plot_means(means)
@@ -82,44 +87,70 @@ class Mm():
             separate Gaussian distributions, each represented by its own
             mean and variance.
             The graphical models is to roll a k-sided die --> 
-              then select a sample from the k'th distribution """
+              then select a sample from the k'th distribution.
+              
+            probability is not represented in log form
+            
+         """
             
         
         # initialize means with k_means
         means = self.k_means(k,5)
         sigmas = []
-        pi = np.mat(np.ones(k,1))*(1/k) # start w uniform distribution
+        # pi is the prob of selecting each mean
+        pis = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
         self.plot_means(means)
+        dists = np.empty(k,dtype=object)
+        sigmas = np.empty(k,dtype=object)
+        for k_i in range(k):
+            sigmas[k_i] = np.eye(self.d, dtype=float)
+            dists[k_i] = multivariate_normal(means[k_i], sigmas[k_i])
 
         for i in range(n_iter):
-            # given the current parameters, calc MLE prob mass for each mean
-            prob_mass_of_each_k = np.zeros((k,1), dtype=float)
-            weighted_sum_of_each_mean = np.mat(np.zeros((k,self.d), dtype=float))
+            # E-STEP
+            # given the current parameters, calc MLE counts (prob mass) 
+            # for each mean
+            prob_mass_of_each_k = np.zeros(k, dtype=float)
+            point_mass_of_each_k = np.zeros((k,self.d), dtype=float)
             
-            for point in self.X: # point is a row [1 x d]
+            for point in self.X: # point is a [d] array
                 # 
                 for k_i in range(k):
-                    prob_mass =  pi[k_i] * 
+                    prob_mass = pis[k_i] * dists[k_i].pdf(point)
                     prob_mass_of_each_k[k_i] += prob_mass 
-                    point_sum[max_mean_i] += point
+                    point_mass_of_each_k[k_i] += prob_mass * point
         
-            # given counts, update means (normalize)
-            #total_count = np.sum(count_of_each_mean)
-            #fraction_of_each_mean = count_of_each_mean/total_count
-            #new_means = fraction_of_each_mean * weighted_sum
+            # M-STEP
+            # given counts (prob masses), update parameters (pis, means, sigmas)
+            # normalize prob_masses
+            # at this point, we want to find the relative probability of 
+            # of each k_means overall
+            # SUM(point_mass_of_each_k) should be 1
+            sum_of_prob_masses = np.sum(prob_mass_of_each_k)
+            pis_new = prob_mass_of_each_k / sum_of_prob_masses
+            assert(abs(np.sum(pis_new) -1) < 0.001)
             
-            #          [n_means x d] / [n_means x 1]
-            new_means = point_sum / prob_mass_of_each_k 
-            means = new_means
+            # TODO: don't keep reallocating memory
+            means_new = np.zeros_like(means)
+            
+            # TODO: vectorize
+            for k_i in range(k):
+                means_new[k_i] = point_mass_of_each_k[k_i] / prob_mass_of_each_k[k_i]
+
+            # TODO: update sigmas
+            
+            pis = pis_new
+            means = means_new
+            
             #print(means)
             self.plot_means(means)
 
-        return new_means
+        return means_new
         
     def plot_means(self, means):
         plt.clf()
-        plt.scatter(np.asarray(self.X[:,0]), np.asarray(self.X[:,1]))
-        plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
+        plt.scatter(self.X[:,0], self.X[:,1])
+        plt.scatter(means[:,0], means[:,1], s=300,c='r')
         #plt.show()
         #plt.draw()
         plt.pause(0.01)
@@ -162,6 +193,7 @@ class TestCrf(unittest.TestCase):
         self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
                    ((means[1,0] == 2.05) and (means[1,1] == 2.05)) )
 
+    #@unittest.skip
     def test_em_simple(self):
         print("\n...test_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
@@ -204,6 +236,7 @@ class TestCrf(unittest.TestCase):
         
 #============================================================================
 if __name__ == '__main__':
+    #test_em_simple()
     unittest.main()
     
     
