@@ -41,7 +41,7 @@ class Mm():
         return s
     
     def k_means(self, n_means, n_iter=2):
-        """ Lyloyd's algorithm for solving k-means """
+        """ Lloyd's algorithm for solving k-means """
         
         # initialize
         maxes = self.X.max(axis=0) # ndarray [d]
@@ -55,7 +55,7 @@ class Mm():
         
         self.plot_means(means)
 
-        for iter in range(n_iter):
+        for i in range(n_iter):
             # given the current means, calculate counts for each
             count_of_each_mean = np.zeros((n_means,1), dtype=float)
             point_sum = np.mat(np.zeros((n_means,self.d), dtype=float))
@@ -68,6 +68,40 @@ class Mm():
                 max_mean_i = np.argmax(prob_mass)
                 count_of_each_mean[max_mean_i] += 1 
                 point_sum[max_mean_i] += point
+                    
+            #          [n_means x d] / [n_means x 1]
+            new_means = point_sum / count_of_each_mean 
+            means = new_means
+            self.plot_means(means)
+
+        return new_means
+
+    def em(self, k, n_iter=2):
+        """ Gmm 
+            k is the number of Gaussian mixtures, meaning we have k
+            separate Gaussian distributions, each represented by its own
+            mean and variance.
+            The graphical models is to roll a k-sided die --> 
+              then select a sample from the k'th distribution """
+            
+        
+        # initialize means with k_means
+        means = self.k_means(k,5)
+        sigmas = []
+        pi = np.mat(np.ones(k,1))*(1/k) # start w uniform distribution
+        self.plot_means(means)
+
+        for i in range(n_iter):
+            # given the current parameters, calc MLE prob mass for each mean
+            prob_mass_of_each_k = np.zeros((k,1), dtype=float)
+            weighted_sum_of_each_mean = np.mat(np.zeros((k,self.d), dtype=float))
+            
+            for point in self.X: # point is a row [1 x d]
+                # 
+                for k_i in range(k):
+                    prob_mass =  pi[k_i] * 
+                    prob_mass_of_each_k[k_i] += prob_mass 
+                    point_sum[max_mean_i] += point
         
             # given counts, update means (normalize)
             #total_count = np.sum(count_of_each_mean)
@@ -75,9 +109,9 @@ class Mm():
             #new_means = fraction_of_each_mean * weighted_sum
             
             #          [n_means x d] / [n_means x 1]
-            new_means = point_sum / count_of_each_mean 
+            new_means = point_sum / prob_mass_of_each_k 
             means = new_means
-            print(means)
+            #print(means)
             self.plot_means(means)
 
         return new_means
@@ -88,7 +122,7 @@ class Mm():
         plt.scatter(np.asarray(means[:,0]), np.asarray(means[:,1]), s=300,c='r')
         #plt.show()
         #plt.draw()
-        plt.pause(0.05)
+        plt.pause(0.01)
     
 
 #============================================================================
@@ -105,16 +139,16 @@ class TestCrf(unittest.TestCase):
         """ runs once before EACH test """
         pass
 
-    #@unittest.skip
+    @unittest.skip
     def test_init(self):
         print("\n...testing init(...)")
         a = [[1,2,3],[4,5,6]]
         m = Mm(a)
         print(m)
     
-    #@unittest.skip
-    def test_simple(self):
-        print("\n...test_simple(...)")
+    @unittest.skip
+    def test_k_means_simple(self):
+        print("\n...test_k_means_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
         mm = Mm(data_mat)
         #print(mm)
@@ -125,7 +159,26 @@ class TestCrf(unittest.TestCase):
         
         self.assertTrue(((means[0,0] == 1.05) and (means[0,1] == 1.05)) or \
                    ((means[1,0] == 1.05) and (means[1,1] == 1.05)) )
-    #@unittest.skip
+        self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
+                   ((means[1,0] == 2.05) and (means[1,1] == 2.05)) )
+
+    def test_em_simple(self):
+        print("\n...test_simple(...)")
+        data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
+        mm = Mm(data_mat)
+        #print(mm)
+        
+        means = mm.em(2)
+        #print(means)
+        #mm.plot_means(means)
+        
+        self.assertTrue(((means[0,0] == 1.05) and (means[0,1] == 1.05)) or \
+                   ((means[1,0] == 1.05) and (means[1,1] == 1.05)) )
+        self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
+                   ((means[1,0] == 2.05) and (means[1,1] == 2.05)) )
+        
+        
+    @unittest.skip
     def test_load(self):
         with open("points.dat") as f:
             data_mat = []
@@ -138,7 +191,7 @@ class TestCrf(unittest.TestCase):
         means = mm.k_means(4,10)
         print(means)
         mm.plot_means(means)
-        print(mm)
+        #print(mm)
 
 
     def tearDown(self):
