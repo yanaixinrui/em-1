@@ -190,18 +190,25 @@ class Mm():
         
     def plot_means(self, means, sigmas=[[[.1,0],[0,.1]],[[.1,0],[0,.1]]]):
         plt.clf()
+        
+        # plot data
         plt.scatter(self.X[:,0], self.X[:,1])
+        # plot means
         plt.scatter(means[:,0], means[:,1], s=300,c='r')
 
+        # plot sigmas
         for k_i in range(len(sigmas)):
-            x, y = np.mgrid[self.mins[0]:self.maxes[0]:.01, \
-                            self.mins[1]:self.maxes[1]:.01]
+            x_vals = np.linspace(self.mins[0], self.maxes[0], 50)
+            y_vals = np.linspace(self.mins[1], self.maxes[1], 50)
+            x, y = np.meshgrid(x_vals, y_vals)
+            #x, y = np.mgrid[self.mins[0]:self.maxes[0]:.01, \
+            #                self.mins[1]:self.maxes[1]:.01]
             pos = np.empty(x.shape + (2,))
             pos[:, :, 0] = x; pos[:, :, 1] = y
             #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
             rv = multivariate_normal(means[k_i], sigmas[k_i])
-            plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
-            #plt.contour(x, y, rv.pdf(pos))
+            #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
+            plt.contour(x, y, rv.pdf(pos))
             levels = [1, 2]
             #plt.contour(x, y, rv.pdf(pos), levels )
     
