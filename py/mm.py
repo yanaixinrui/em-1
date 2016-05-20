@@ -82,7 +82,7 @@ class Mm():
                 if(count_of_each_mean[k_i] == 0):
                     # randomly assign a point (with a little noise) from data 
                     # set to this mean
-                    count_of_each_mean[k_i] == 1
+                    count_of_each_mean[k_i] = 1
                     point_sum[max_mean_i] = self.X[random.randrange(self.n)]
                     point_sum[max_mean_i][0] += random.random() - 0.5
                     
@@ -208,11 +208,14 @@ class Mm():
             #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
             rv = multivariate_normal(means[k_i], sigmas[k_i])
             #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
-            plt.contour(x, y, rv.pdf(pos))
+            try:
+                plt.contour(x, y, rv.pdf(pos))
+            except ValueError:
+                pass
             levels = [1, 2]
             #plt.contour(x, y, rv.pdf(pos), levels )
     
-        plt.pause(0.01)
+        plt.pause(0.001)
 
 #============================================================================
 class TestCrf(unittest.TestCase):
@@ -239,13 +242,10 @@ class TestCrf(unittest.TestCase):
     def test_k_means_simple(self):
         print("\n...test_k_means_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
-        mm = Mm(data_mat)
-        #print(mm)
-        
+        mm = Mm(data_mat)      
         means = mm.k_means(2)
-        #print(means)
-        #mm.plot_means(means)
-        
+
+        # make sure the correct means are discovered
         self.assertTrue(((means[0,0] == 1.05) and (means[0,1] == 1.05)) or \
                    ((means[1,0] == 1.05) and (means[1,1] == 1.05)) )
         self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
@@ -270,7 +270,7 @@ class TestCrf(unittest.TestCase):
         '''
         
     @unittest.skip
-    def test_load(self):
+    def test_k_means_load(self):
         with open("points.dat") as f:
             data_mat = []
             for line in f:
@@ -278,8 +278,9 @@ class TestCrf(unittest.TestCase):
                 assert(len(sline) == 2)
                 data_mat.append(sline)
         mm = Mm(data_mat)
-        
-        means = mm.k_means(4,10)
+        k = 4
+        n_iter = 10
+        means = mm.k_means(k, n_iter)
         print(means)
         mm.plot_means(means)
         #print(mm)
