@@ -94,7 +94,7 @@ class Mm():
         return new_means
 
     #--------------------------------------------------------------------------
-    def em(self, k, n_iter=2):
+    def em_for(self, k, n_iter=2):
         """ Gmm 
             k is the number of Gaussian mixtures, meaning we have k
             separate Gaussian distributions, each represented by its own
@@ -272,8 +272,8 @@ class TestCrf(unittest.TestCase):
         self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
                    ((means[1,0] == 2.05) and (means[1,1] == 2.05)) )
 
-    #@unittest.skip
-    def test_em_simple(self):
+    @unittest.skip
+    def test_em_for_simple(self):
         print("\n...test_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 0.9; 2.1,2.0')
         mm = Mm(data_mat)
@@ -305,8 +305,8 @@ class TestCrf(unittest.TestCase):
         print(means)
         mm.plot_means(means)
 
-    @unittest.skip
-    def test_em_load(self):
+    #@unittest.skip
+    def test_em_for(self):
         with open("points.dat") as f:
             data_mat = []
             for line in f:
@@ -316,9 +316,9 @@ class TestCrf(unittest.TestCase):
         mm = Mm(data_mat)
         k = 4
         n_iter = 50
-        means = mm.em(k, n_iter)
+        means, sigmas = mm.em_for(k, n_iter)
         print(means)
-        mm.plot_means(means)
+        mm.plot_means(means,sigmas)
 
 
     def tearDown(self):
