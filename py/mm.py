@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 
+from sklearn import preprocessing
+
 import unittest
 import time
 from scipy.stats import multivariate_normal
@@ -36,6 +38,7 @@ class Mm():
     #--------------------------------------------------------------------------
     def __init__(self, point_list=[[]]): 
         self.X = np.array(point_list,copy = True, dtype=float) # X[i,point]
+        self.X = preprocessing.scale(self.X)
         self.n,self.d = self.X.shape 
         #self.n_means = 1
         #self.means = np.mat(np.zeros((n_means, self.d),float))
@@ -307,14 +310,15 @@ class TestCrf(unittest.TestCase):
 
     #@unittest.skip
     def test_em_for(self):
-        with open("points.dat") as f:
+        #with open("points.dat") as f:
+        with open("decep.dat") as f:
             data_mat = []
             for line in f:
-                sline = line.split()
+                sline = line.split(',')
                 assert(len(sline) == 2)
                 data_mat.append(sline)
         mm = Mm(data_mat)
-        k = 4
+        k = 2
         n_iter = 50
         means, sigmas = mm.em_for(k, n_iter)
         print(means)
