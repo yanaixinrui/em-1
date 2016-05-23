@@ -1,0 +1,28 @@
+PHASE 1
+
+Got standard Gaussian EM working, seemingly prety well on the points.dat, as well as the 
+built in test data.
+
+Will next remove the memory and calculation inefficiencies.
+
+Then will benchmark.
+
+Then, will vectorize.
+
+Then will benchmark.
+
+Then will port to gnumpy.
+
+Then will benchmark.
+
+Then possibly will use python parallel processes.
+
+---------------------------------------
+PHASE 2
+
+add HMM training to the fastest mechanism.
+
+---------------------------------------
+PHASE 3
+
+Implement the dual HMM model using CERT data.
