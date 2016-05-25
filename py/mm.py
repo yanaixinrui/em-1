@@ -96,6 +96,33 @@ class Mm():
 
         return new_means
 
+
+
+    #--------------------------------------------------------------------------
+    def em_init(self, k):
+        """ allocates large matrice data structures for em algorithm """
+
+        means = np.random.rand(k,self.d) # [nm x d] mat
+        means = means * self.ranges # [nm x d] * [d] 
+        means = means + self.mins # [nm x d] + [d]        
+
+        # initialize sigmas
+        sigmas = np.empty(k,dtype=object)
+        for k_i in range(k):
+            sigmas[k_i] = 0.1 * np.eye(self.d, dtype=float)
+
+        # initialize pis (the mixing portion of each mean)
+        pis = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
+
+        dists = np.empty(k,dtype=object)
+        prob_masses = np.zeros((k,self.n),dtype=float)
+        responsibilities = np.zeros((k,self.n),dtype=float)
+
+        counts = np.zeros(k,dtype=float)
+
+
+        return means, sigmas, pis, responsibilities, prob_masses, dists,counts
+
     #--------------------------------------------------------------------------
     def em_for(self, k, n_iter=2):
         """ Gmm 
@@ -112,26 +139,9 @@ class Mm():
         #-----------------------------------------------------
         # INITIALIZE
         
-        # initialize means
-        #means = self.k_means(k,5)
-        means = np.random.rand(k,self.d) # [nm x d] mat
-        means = means * self.ranges # [nm x d] * [d] 
-        means = means + self.mins # [nm x d] + [d]
-        
+        means, sigmas, pis, responsibilities, prob_masses,dists,counts = self.em_init(k)
         self.plot_means(means)
-
-        # initialize sigmas
-        sigmas = np.empty(k,dtype=object)
-        for k_i in range(k):
-            sigmas[k_i] = 0.1 * np.eye(self.d, dtype=float)
-
-        # initialize pis (the mixing portion of each mean)
-        pis = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
-
-        dists = np.empty(k,dtype=object)
-        prob_masses = np.zeros((k,self.n),dtype=float)
-        responsibilities = np.zeros((k,self.n),dtype=float)
-
+    
         #-----------------------------------------------------
         # ITERATION LOOP
         for i in range(n_iter):
@@ -153,7 +163,6 @@ class Mm():
                 assert(abs(np.sum(responsibilities[:,x_i]) -1) < 0.001)    
             
             # calc counts (Nk)
-            counts = np.zeros(k,dtype=float)
             for k_i in range(k):
                 counts[k_i] = np.sum(responsibilities[k_i,:])
                 
@@ -171,17 +180,15 @@ class Mm():
                 for k_i in range(k):
                     point_mass_of_each_k[k_i] += responsibilities[k_i,x_i]*point
 
-            # TODO: don't keep reallocating memory
-            means_new = np.zeros_like(means)
             for k_i in range(k):
-                means_new[k_i] = point_mass_of_each_k[k_i] / counts[k_i]
+                means[k_i] = point_mass_of_each_k[k_i] / counts[k_i]
             
+
             # calc pis
             total_counts = np.sum(counts)
-            pis_new = np.zeros_like(pis)
             for k_i in range(k):
-                pis_new[k_i] = counts[k_i]/total_counts
-            assert(abs(np.sum(pis_new) -1) < 0.001)
+                pis[k_i] = counts[k_i]/total_counts
+            assert(abs(np.sum(pis) -1) < 0.001)
             
 
             # calc sigmas
@@ -191,18 +198,14 @@ class Mm():
             for x_i,point in enumerate(self.X): # point is a [d] array
                 # TODO: vectorize
                 for k_i in range(k):
-                    d = point - means_new[k_i]
+                    d = point - means[k_i]
                     sigmas[k_i][0,0] += responsibilities[k_i,x_i] * d[0] * d[0]
                     sigmas[k_i][1,1] += responsibilities[k_i,x_i] * d[1] * d[1]
                     
             for k_i in range(k):
                 sigmas[k_i] = sigmas[k_i] / counts[k_i]                
                 sigmas[k_i] += 0.00000001 * np.eye(self.d) # prevent singularity
-            
-            pis = pis_new
-            means = means_new
-            sigmas = sigmas 
-            
+       
             self.plot_means(means, sigmas)
 
         return means, sigmas

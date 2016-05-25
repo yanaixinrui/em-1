@@ -13,6 +13,7 @@ import random
 # performace counter, does not include time during sleep 
 from time import process_time
 import cProfile
+import timeit
 
 SIZE = 5000
 
@@ -41,6 +42,8 @@ def cp_mat(source_mat, dest_mat):
     dest_mat[:,:] = source_mat[:,:]
 
 
+
+
 def dot_for_for(source_mat_A, source_mat_B, dest_mat):
     for i in range(SIZE):
         for j in range(SIZE):
@@ -57,6 +60,20 @@ def cp_col_for(source_mat, dest_mat):
 def cp_mat(source_mat, dest_mat):
     dest_mat[:,:] = source_mat[:,:]
     
+
+def plus_mult_setup():
+    a = np.random.rand(SIZE,SIZE)
+    b = np.random.rand(SIZE,SIZE)
+    c = np.random.rand(SIZE,SIZE)
+    return a,b,c
+
+def plus_mult_inplace(a,b,c):
+    a += b
+    a *= c
+    
+
+def plus_mult_new(a,b,c):
+    a = a*b + c
     
 #start = process_time()
 
@@ -69,5 +86,9 @@ C.fill(0.)
 cProfile.run('cp_col_for(A,C)')
 C.fill(0.)
 cProfile.run('cp_mat(A,C)')
+
+a,b,c = plus_mult_setup()
+cProfile.run('plus_mult_inplace(a,b,c)')
+cProfile.run('plus_mult_new(a,b,c)')
 
 
