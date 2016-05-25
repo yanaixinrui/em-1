@@ -323,7 +323,7 @@ class TestCrf(unittest.TestCase):
         means, sigmas = mm.em_for(k, n_iter)
         print(means)
         mm.plot_means(means,sigmas)
-
+        pause = input('Press enter when complete: ')
 
     def tearDown(self):
         """ runs after each test """
@@ -337,7 +337,7 @@ class TestCrf(unittest.TestCase):
 if __name__ == '__main__':
     #test_em_simple()
     unittest.main()
-    
+
     
 # 11:00
 # 2:40 
