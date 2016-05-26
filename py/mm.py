@@ -138,8 +138,39 @@ class Mm():
         
         return parameters, varz
 
+
+
     #--------------------------------------------------------------------------
     def em_estep(self, parameters, varz):
+        """ given parameters, calculate varz """
+        
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        k = len(pis_k)
+        
+        for k_i in range(k):
+            dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
+        
+        for x_i,point in enumerate(self.X): # point is a [d] array
+            # TODO: vectorize
+            # calc prob masses & resp_kn
+            for k_i in range(k):
+                prob_mass = pis_k[k_i] * dists[k_i].pdf(point)
+                prob_masses[k_i,x_i] = prob_mass
+                                                
+            # normalize responsibilities
+            resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
+            assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
+        
+        # calc counts (Nk)
+        for k_i in range(k):
+            counts[k_i] = np.sum(resp_kn[k_i,:])
+
+        return
+    
+    
+    #--------------------------------------------------------------------------
+    def em_estep_v(self, parameters, varz):
         """ given parameters, calculate varz """
         
         means_kd, sigmas_kdd, pis_k          = parameters
@@ -211,6 +242,51 @@ class Mm():
         return
 
     #--------------------------------------------------------------------------
+    def em_mstep_v(self, parameters, varz):
+        """ given varz, calculate parameters """
+    
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        k = len(pis_k)
+        
+        # calc means
+        means_kd.fill(0.)
+        #   calculate weighted sums of data points
+        #for x_i,point in enumerate(self.X): # point is a [d] array
+            #for k_i in range(k):
+            #    means_kd[k_i] += resp_kn[k_i,x_i]*point
+        means_kd[:] =  np.einsum('kn,nd->kd',resp_kn, self.X) 
+        
+        #   average is sum/count
+        #for k_i in range(k):
+        #    means_kd[k_i] /= counts[k_i]
+        means_kd /= counts[:,np.newaxis]
+
+        # calc pis
+        #total_counts = np.sum(counts)
+        #for k_i in range(k):
+        #    pis_k[k_i] = counts[k_i]/total_counts
+        pis_k[:] = counts/np.sum(counts)
+        assert(abs(np.sum(pis_k) -1) < 0.001)
+        
+
+        # calc sigmas
+        for k_i in range(k):
+            sigmas_kdd[k_i].fill(0.)
+
+        for x_i,point in enumerate(self.X): # point is a [d] array
+            # TODO: vectorize
+            for k_i in range(k):
+                d = point - means_kd[k_i]
+                sigmas_kdd[k_i] += resp_kn[k_i,x_i] * np.outer(d,d)
+                
+        for k_i in range(k):
+            sigmas_kdd[k_i] /= counts[k_i]                
+            sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
+
+        return
+
+    #--------------------------------------------------------------------------
     def em_for(self, k, n_iter=2):
         """ Gmm 
             k is the number of Gaussian mixtures, meaning we have k
@@ -255,6 +331,51 @@ class Mm():
 
         return means_kd, sigmas_kdd
         
+    #--------------------------------------------------------------------------
+    def em(self, k, n_iter=2):
+        """ Gmm 
+            k is the number of Gaussian mixtures, meaning we have k
+            separate Gaussian distributions, each represented by its own
+            mean and variance.
+            The graphical models is to roll a k-sided die --> 
+              then select a sample from the k'th distribution.
+              
+            probability is not represented in log form
+            
+         """
+            
+        #-----------------------------------------------------
+        # INITIALIZE
+        
+        parameters, varz = self.em_init(k)
+
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        
+        self.plot_means(means_kd)
+        
+        #-----------------------------------------------------
+        # ITERATION LOOP
+        for i in range(n_iter):
+            #------------------------
+            # E-STEP
+            #   given current params(mean & sigma),calc MLE cnts(responsibilites)
+
+            self.em_estep_v(parameters,varz)            
+                
+            #------------------------
+            # M-STEP
+            #   given counts (resp_kn), update parameters (pis, means, sigmas)
+            #   normalize prob_masses
+            #   at this point, we want to find the relative probability of 
+            #   of each k_means overall
+
+            self.em_mstep_v(parameters, varz)
+       
+            self.plot_means(means_kd, sigmas_kdd)
+
+        return means_kd, sigmas_kdd
+                
     #--------------------------------------------------------------------------
     def plot_means(self, means, sigmas=[]):
         # sigmas=[[[.1,0],[0,.1]],[[.1,0],[0,.1]]]
@@ -360,7 +481,7 @@ class TestCrf(unittest.TestCase):
         print(means)
         mm.plot_means(means)
 
-    #@unittest.skip
+    @unittest.skip
     def test_em_for(self):
         #with open("points.dat") as f:
         with open("decep.dat") as f:
@@ -378,6 +499,24 @@ class TestCrf(unittest.TestCase):
         mm.plot_means(means,sigmas)
         #pause = input('Press enter when complete: ')
 
+    def test_em(self):
+        #with open("points.dat") as f:
+        with open("decep.dat") as f:
+            data_mat = []
+            for line in f:
+                #sline = line.split(', ')
+                sline = re.findall(r'[^,;\s]+', line)
+                assert(len(sline) == 2)
+                data_mat.append(sline)
+        mm = Mm(data_mat)
+        k = 2
+        n_iter = 50
+        means, sigmas = mm.em(k, n_iter)
+        print(means)
+        mm.plot_means(means,sigmas)
+        #pause = input('Press enter when complete: ')
+
+    @unittest.skip
     def test_em_for2(self):
         with open("points.dat") as f:
         #with open("decep.dat") as f:
