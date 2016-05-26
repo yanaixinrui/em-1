@@ -22,6 +22,7 @@ import unittest
 import time
 from scipy.stats import multivariate_normal
 import random
+from symbol import parameters
 
 try:
     from scipy.misc  import logsumexp
@@ -38,13 +39,16 @@ class Mm():
     #--------------------------------------------------------------------------
     def __init__(self, point_list=[[]]): 
         self.X = np.array(point_list,copy = True, dtype=float) # X[i,point]
+        self.mean_orig = self.X.mean(axis=0)
+        self.var_orig = self.X.var(axis=0)
         self.X = preprocessing.scale(self.X)
-        self.n,self.d = self.X.shape 
-        #self.n_means = 1
-        #self.means = np.mat(np.zeros((n_means, self.d),float))
         self.maxes = self.X.max(axis=0) # ndarray [d]
         self.mins = self.X.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins
+        self.n,self.d = self.X.shape 
+        #self.n_means = 1
+        #self.means = np.mat(np.zeros((n_means, self.d),float))
+
         plt.figure(figsize=(6,6))
     
     #--------------------------------------------------------------------------   
@@ -93,6 +97,9 @@ class Mm():
             new_means = np.divide(point_sum, count_of_each_mean[:,np.newaxis]) 
             means = new_means
             self.plot_means(means)
+        
+        new_means *= np.sqrt(self.var_orig)
+        new_means += self.mean_orig
 
         return new_means
 
@@ -100,28 +107,107 @@ class Mm():
 
     #--------------------------------------------------------------------------
     def em_init(self, k):
-        """ allocates large matrice data structures for em algorithm """
+        """ Allocates large np.array data structures for em algorithm. 
+            returns:
+                parameters = [means, sigmas, pis]
+                vars = [resp_kn, prob_masses, dists, counts]
+        """
 
-        means = np.random.rand(k,self.d) # [nm x d] mat
-        means = means * self.ranges # [nm x d] * [d] 
-        means = means + self.mins # [nm x d] + [d]        
+        # means  :[nm x d]
+        means = np.random.rand(k,self.d) 
+        means *= self.ranges  
+        means += self.mins 
 
-        # initialize sigmas
+        # sigmas :[k][d x d]
         sigmas = np.empty(k,dtype=object)
         for k_i in range(k):
             sigmas[k_i] = 0.1 * np.eye(self.d, dtype=float)
 
-        # initialize pis (the mixing portion of each mean)
+        # pis    :[k]
+        # (the mixing portion of each mean)
         pis = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
 
         dists = np.empty(k,dtype=object)
         prob_masses = np.zeros((k,self.n),dtype=float)
-        responsibilities = np.zeros((k,self.n),dtype=float)
+        resp_kn = np.zeros((k,self.n),dtype=float)
 
         counts = np.zeros(k,dtype=float)
+        parameters = [means, sigmas, pis]
+        varz = [resp_kn, prob_masses, dists,counts]
+        
+        return parameters, varz
 
+    #--------------------------------------------------------------------------
+    def em_estep(self, parameters, varz):
+        """ given parameters, calculate varz """
+        
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        k = len(pis_k)
+        
+        for k_i in range(k):
+            dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
+        
+        for x_i,point in enumerate(self.X): # point is a [d] array
+            # TODO: vectorize
+            # calc prob masses & resp_kn
+            for k_i in range(k):
+                prob_mass = pis_k[k_i] * dists[k_i].pdf(point)
+                prob_masses[k_i,x_i] = prob_mass
+                                                
+            # normalize responsibilities
+            resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
+            assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
+        
+        # calc counts (Nk)
+        for k_i in range(k):
+            counts[k_i] = np.sum(resp_kn[k_i,:])
 
-        return means, sigmas, pis, responsibilities, prob_masses, dists,counts
+        return
+    
+    
+    
+    #--------------------------------------------------------------------------
+    def em_mstep(self, parameters, varz):
+        """ given varz, calculate parameters """
+    
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        k = len(pis_k)
+        
+        # calc means
+        means_kd.fill(0.)
+        #   calculate weighted sums of data points
+        for x_i,point in enumerate(self.X): # point is a [d] array
+            for k_i in range(k):
+                means_kd[k_i] += resp_kn[k_i,x_i]*point
+                
+        #   average is sum/count
+        for k_i in range(k):
+            means_kd[k_i] /= counts[k_i]
+
+        # calc pis
+        total_counts = np.sum(counts)
+        for k_i in range(k):
+            pis_k[k_i] = counts[k_i]/total_counts
+        assert(abs(np.sum(pis_k) -1) < 0.001)
+        
+
+        # calc sigmas
+        for k_i in range(k):
+            sigmas_kdd[k_i].fill(0.)
+
+        for x_i,point in enumerate(self.X): # point is a [d] array
+            # TODO: vectorize
+            for k_i in range(k):
+                d = point - means_kd[k_i]
+                sigmas_kdd[k_i] += resp_kn[k_i,x_i] * np.outer(d,d)
+                
+        for k_i in range(k):
+            sigmas_kdd[k_i] /= counts[k_i]                
+            sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
+
+        return
 
     #--------------------------------------------------------------------------
     def em_for(self, k, n_iter=2):
@@ -139,76 +225,34 @@ class Mm():
         #-----------------------------------------------------
         # INITIALIZE
         
-        means, sigmas, pis, responsibilities, prob_masses,dists,counts = self.em_init(k)
-        self.plot_means(means)
-    
+        parameters, varz = self.em_init(k)
+
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        
+        self.plot_means(means_kd)
+        
         #-----------------------------------------------------
         # ITERATION LOOP
         for i in range(n_iter):
-
             #------------------------
             # E-STEP
-            # given current params(mean & sigma),calc MLE cnts(responsibilites)
-            for k_i in range(k):
-                dists[k_i] = multivariate_normal(means[k_i], sigmas[k_i])
-            
-            for x_i,point in enumerate(self.X): # point is a [d] array
-                # TODO: vectorize
-                # calc prob masses & responsibilities
-                for k_i in range(k):
-                    prob_mass = pis[k_i] * dists[k_i].pdf(point)
-                    prob_masses[k_i,x_i] = prob_mass
-                                                    
-                responsibilities[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i]) 
-                assert(abs(np.sum(responsibilities[:,x_i]) -1) < 0.001)    
-            
-            # calc counts (Nk)
-            for k_i in range(k):
-                counts[k_i] = np.sum(responsibilities[k_i,:])
+            #   given current params(mean & sigma),calc MLE cnts(responsibilites)
+
+            self.em_estep(parameters,varz)            
                 
             #------------------------
             # M-STEP
-            # given counts (resp), update parameters (pis, means, sigmas)
-            # normalize prob_masses
-            # at this point, we want to find the relative probability of 
-            # of each k_means overall
-            # SUM(point_mass_of_each_k) should be 1
+            #   given counts (resp_kn), update parameters (pis, means, sigmas)
+            #   normalize prob_masses
+            #   at this point, we want to find the relative probability of 
+            #   of each k_means overall
 
-            # calc means
-            point_mass_of_each_k = np.zeros((k,self.d), dtype=float)
-            for x_i,point in enumerate(self.X): # point is a [d] array
-                for k_i in range(k):
-                    point_mass_of_each_k[k_i] += responsibilities[k_i,x_i]*point
-
-            for k_i in range(k):
-                means[k_i] = point_mass_of_each_k[k_i] / counts[k_i]
-            
-
-            # calc pis
-            total_counts = np.sum(counts)
-            for k_i in range(k):
-                pis[k_i] = counts[k_i]/total_counts
-            assert(abs(np.sum(pis) -1) < 0.001)
-            
-
-            # calc sigmas
-            for k_i in range(k):
-                sigmas[k_i].fill(0.)
-
-            for x_i,point in enumerate(self.X): # point is a [d] array
-                # TODO: vectorize
-                for k_i in range(k):
-                    d = point - means[k_i]
-                    sigmas[k_i][0,0] += responsibilities[k_i,x_i] * d[0] * d[0]
-                    sigmas[k_i][1,1] += responsibilities[k_i,x_i] * d[1] * d[1]
-                    
-            for k_i in range(k):
-                sigmas[k_i] = sigmas[k_i] / counts[k_i]                
-                sigmas[k_i] += 0.00000001 * np.eye(self.d) # prevent singularity
+            self.em_mstep(parameters, varz)
        
-            self.plot_means(means, sigmas)
+            self.plot_means(means_kd, sigmas_kdd)
 
-        return means, sigmas
+        return means_kd, sigmas_kdd
         
     #--------------------------------------------------------------------------
     def plot_means(self, means, sigmas=[]):
@@ -273,10 +317,14 @@ class TestCrf(unittest.TestCase):
         means = mm.k_means(2)
 
         # make sure the correct means are discovered
-        self.assertTrue(((means[0,0] == 1.05) and (means[0,1] == 1.05)) or \
-                   ((means[1,0] == 1.05) and (means[1,1] == 1.05)) )
-        self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
-                   ((means[1,0] == 2.05) and (means[1,1] == 2.05)) )
+        self.assertTrue((abs(means[0,0] - 1.05) < 0.01 and \
+                         abs(means[0,1] - 1.05) < 0.01) or \
+                       (abs(means[0,0] - 2.05) < 0.01 and \
+                        abs(means[0,1] - 2.05) < 0.01) )
+        self.assertTrue((abs(means[1,0] - 2.05) < 0.01 and \
+                         abs(means[1,1] - 2.05) < 0.01) or \
+                       (abs(means[1,0] - 1.05) < 0.01 and \
+                        abs(means[1,1] - 1.05) < 0.01) )
 
     @unittest.skip
     def test_em_for_simple(self):
@@ -285,7 +333,7 @@ class TestCrf(unittest.TestCase):
         mm = Mm(data_mat)
         #print(mm)
         
-        means = mm.em(2, 20)
+        means = mm.em_for(2, 20)
         #print(means)
         #mm.plot_means(means)
         
@@ -326,7 +374,7 @@ class TestCrf(unittest.TestCase):
         means, sigmas = mm.em_for(k, n_iter)
         print(means)
         mm.plot_means(means,sigmas)
-        pause = input('Press enter when complete: ')
+        #pause = input('Press enter when complete: ')
 
     def tearDown(self):
         """ runs after each test """
@@ -339,8 +387,10 @@ class TestCrf(unittest.TestCase):
 #============================================================================
 if __name__ == '__main__':
     #test_em_simple()
-    unittest.main()
-
+    try:
+        unittest.main()
+    except AssertionError:
+        pass
     
 # 11:00
 # 2:40 
