@@ -7,6 +7,7 @@ Classes to implement Gaussian mixture model with EM
 ------------------------------------------------------------------------------
 """
 import numpy as np
+import re
 
 #import itertools # for product
 #import sys        # for sys.float_info.max
@@ -365,7 +366,8 @@ class TestCrf(unittest.TestCase):
         with open("decep.dat") as f:
             data_mat = []
             for line in f:
-                sline = line.split(',')
+                #sline = line.split(', ')
+                sline = re.findall(r'[^,;\s]+', line)
                 assert(len(sline) == 2)
                 data_mat.append(sline)
         mm = Mm(data_mat)
@@ -375,6 +377,24 @@ class TestCrf(unittest.TestCase):
         print(means)
         mm.plot_means(means,sigmas)
         #pause = input('Press enter when complete: ')
+
+    def test_em_for2(self):
+        with open("points.dat") as f:
+        #with open("decep.dat") as f:
+            data_mat = []
+            for line in f:
+                #sline = line.split(', ')
+                sline = re.findall(r'[^,;\s]+', line)
+                assert(len(sline) == 2)
+                data_mat.append(sline)
+        mm = Mm(data_mat)
+        for k in range(2,5):
+            n_iter = 100
+            means, sigmas = mm.em_for(k, n_iter)
+            print(means)
+            mm.plot_means(means,sigmas)
+            pause = input('Press enter when complete: ')
+
 
     def tearDown(self):
         """ runs after each test """
