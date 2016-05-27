@@ -26,3 +26,11 @@ add HMM training to the fastest mechanism.
 PHASE 3
 
 Implement the dual HMM model using CERT data.
+
+
+
+when running:
+
+    python -O mm.py
+
+the -O causes asserts and debug ifs to not be executed

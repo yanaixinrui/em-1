@@ -41,14 +41,14 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def __init__(self, point_list=[[]]): 
-        self.X = np.array(point_list,copy = True, dtype=float) # X[i,point]
-        self.mean_orig = self.X.mean(axis=0)
-        self.var_orig = self.X.var(axis=0)
-        self.X = preprocessing.scale(self.X)
-        self.maxes = self.X.max(axis=0) # ndarray [d]
-        self.mins = self.X.min(axis=0)  # ndarray [d]
+        self.X_nd = np.array(point_list,copy = True, dtype=float) # X[i,point]
+        self.mean_orig = self.X_nd.mean(axis=0)
+        self.var_orig = self.X_nd.var(axis=0)
+        self.X_nd = preprocessing.scale(self.X_nd)
+        self.maxes = self.X_nd.max(axis=0) # ndarray [d]
+        self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins
-        self.n,self.d = self.X.shape 
+        self.n,self.d = self.X_nd.shape 
         #self.n_means = 1
         #self.means = np.mat(np.zeros((n_means, self.d),float))
 
@@ -57,7 +57,7 @@ class Mm():
     #--------------------------------------------------------------------------   
     def __str__(self):
         s = "mm data: (N = " + str(self.n) + ", D = " + str(self.d) +")"
-        for point in self.X:
+        for point in self.X_nd:
             s += "\n  " + str(point)
         return s
     
@@ -78,7 +78,7 @@ class Mm():
             point_sum = np.zeros((k,self.d), dtype=float)
             
             # TODO: vectorize this for loop
-            for point in self.X: # point is a row [1 x 2]
+            for point in self.X_nd: # point is a row [1 x 2]
                 # the "probability mass" is just inverse distance sq
                 difference =  (means - point)          # [nm x d] - [1 x d]
                 dist_sq = np.sum((difference * difference), axis=1)
@@ -93,7 +93,7 @@ class Mm():
                     # randomly assign a point (with a little noise) from data 
                     # set to this mean
                     count_of_each_mean[k_i] = 1
-                    point_sum[max_mean_i] = self.X[random.randrange(self.n)]
+                    point_sum[max_mean_i] = self.X_nd[random.randrange(self.n)]
                     point_sum[max_mean_i][0] += random.random() - 0.5
                     
             #          [n_means x d] / [n_means]
@@ -153,7 +153,7 @@ class Mm():
         for k_i in range(k):
             dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
-        for x_i,point in enumerate(self.X): # point is a [d] array
+        for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # TODO: vectorize
             # calc prob masses & resp_kn
             for k_i in range(k):
@@ -176,13 +176,14 @@ class Mm():
         """ given parameters, calculate varz """
         
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
+        resp_kn, prob_masses, dists, counts_k  = varz
         k = len(pis_k)
         
         for k_i in range(k):
             dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
-        for x_i,point in enumerate(self.X): # point is a [d] array
+        '''
+        for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # TODO: vectorize
             # calc prob masses & resp_kn
             for k_i in range(k):
@@ -192,10 +193,31 @@ class Mm():
             # normalize responsibilities
             resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
+        '''
+            
+        # it is doubtful that vectorizing this will help
+        for k_i in range(k):
+            # TODO: vectorize
+            # calc prob masses & resp_kn
+            prob_masses[k_i,:] = pis_k[k_i] * dists[k_i].pdf(self.X_nd)
+                                                
+        '''
+        for x_i,point in enumerate(self.X_nd): # point is a [d] array
+            # normalize responsibilities
+            resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
+            assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
+        '''
+        # normalize responsibilities
+        resp_kn[:,:] = np.divide(prob_masses, np.sum(prob_masses, axis=0)[np.newaxis,:])
+        # TODO: vreate a vectorized assert
+        #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
+         
+        
         
         # calc counts (Nk)
-        for k_i in range(k):
-            counts[k_i] = np.sum(resp_kn[k_i,:])
+        #for k_i in range(k):
+        #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
+        counts_k[:] = np.sum(resp_kn, axis=1)
 
         return
     
@@ -212,7 +234,7 @@ class Mm():
         # calc means
         means_kd.fill(0.)
         #   calculate weighted sums of data points
-        for x_i,point in enumerate(self.X): # point is a [d] array
+        for x_i,point in enumerate(self.X_nd): # point is a [d] array
             for k_i in range(k):
                 means_kd[k_i] += resp_kn[k_i,x_i]*point
                 
@@ -231,7 +253,7 @@ class Mm():
         for k_i in range(k):
             sigmas_kdd[k_i].fill(0.)
 
-        for x_i,point in enumerate(self.X): # point is a [d] array
+        for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # TODO: vectorize
             for k_i in range(k):
                 d = point - means_kd[k_i]
@@ -254,10 +276,10 @@ class Mm():
         # calc means
         means_kd.fill(0.)
         #   calculate weighted sums of data points
-        #for x_i,point in enumerate(self.X): # point is a [d] array
+        #for x_i,point in enumerate(self.X_nd): # point is a [d] array
             #for k_i in range(k):
             #    means_kd[k_i] += resp_kn[k_i,x_i]*point
-        means_kd[:] =  np.einsum('kn,nd->kd',resp_kn, self.X) 
+        means_kd[:] =  np.einsum('kn,nd->kd',resp_kn, self.X_nd) 
         
         #   average is sum/count
         #for k_i in range(k):
@@ -276,12 +298,20 @@ class Mm():
         for k_i in range(k):
             sigmas_kdd[k_i].fill(0.)
 
-        for x_i,point in enumerate(self.X): # point is a [d] array
+        '''
+        for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # TODO: vectorize
             for k_i in range(k):
                 d = point - means_kd[k_i]
                 sigmas_kdd[k_i] += resp_kn[k_i,x_i] * np.outer(d,d)
-                
+        '''
+        #d_knd = self.X_nd[np.newaxis,:,:] - means_kd[:,np.newaxis,:]
+        #d_knd *= d_knd
+        for k_i in range(k):
+            #for x_i,point in enumerate(self.X_nd): # point is a [d] array
+            diff_nd = np.sqrt(resp_kn[k_i,:,np.newaxis]) * (self.X_nd - means_kd[k_i])
+            sigmas_kdd[k_i] = np.sum(np.einsum('nd,nD->ndD', diff_nd, diff_nd),axis=0)
+               
         for k_i in range(k):
             sigmas_kdd[k_i] /= counts[k_i]                
             sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
@@ -309,7 +339,8 @@ class Mm():
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
         
-        #self.plot_means(means_kd)
+        if __debug__:
+            self.plot_means(means_kd)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -329,7 +360,8 @@ class Mm():
 
             self.em_mstep(parameters, varz)
        
-            #self.plot_means(means_kd, sigmas_kdd)
+            if __debug__:
+                self.plot_means(means_kd, sigmas_kdd)
 
         return means_kd, sigmas_kdd
         
@@ -354,7 +386,8 @@ class Mm():
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
         
-        #self.plot_means(means_kd)
+        if __debug__:
+            self.plot_means(means_kd)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -374,7 +407,8 @@ class Mm():
 
             self.em_mstep_v(parameters, varz)
        
-            #self.plot_means(means_kd, sigmas_kdd)
+            if __debug__:
+                self.plot_means(means_kd, sigmas_kdd)
 
         return means_kd, sigmas_kdd
                 
@@ -385,7 +419,7 @@ class Mm():
         plt.clf()
         
         # plot data
-        plt.scatter(self.X[:,0], self.X[:,1])
+        plt.scatter(self.X_nd[:,0], self.X_nd[:,1])
         
         # plot means
         plt.scatter(means[:,0], means[:,1], s=300,c='r')
@@ -402,13 +436,12 @@ class Mm():
                 pos[:, :, 0] = x; pos[:, :, 1] = y
                 #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
                 rv = multivariate_normal(means[k_i], sigmas[k_i])
-                #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
+
                 try:
+                    #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
                     plt.contour(x, y, rv.pdf(pos))
                 except ValueError:
                     pass
-                levels = [1, 2]
-                #plt.contour(x, y, rv.pdf(pos), levels )
     
         plt.pause(0.001)
 
@@ -574,10 +607,5 @@ if __name__ == '__main__':
     profiler = ProfileMm()
     profiler.compare_all()
     #test_em_simple()
-    '''
-    try:
-        unittest.main()
-    except AssertionError:
-        pass
-    '''
-       
+    #unittest.main()
+        
