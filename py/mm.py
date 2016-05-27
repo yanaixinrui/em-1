@@ -19,8 +19,7 @@ from matplotlib import cm
 
 from sklearn import preprocessing
 
-import unittest
-import time
+
 from scipy.stats import multivariate_normal
 import random
 from symbol import parameters
@@ -31,6 +30,9 @@ except ImportError:
     def logsumexp(x,**kwargs):
         return np.log(np.sum(np.exp(x),**kwargs))
 
+import unittest
+import time
+import cProfile
 
 #============================================================================
 class Mm():
@@ -307,7 +309,7 @@ class Mm():
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
         
-        self.plot_means(means_kd)
+        #self.plot_means(means_kd)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -327,12 +329,12 @@ class Mm():
 
             self.em_mstep(parameters, varz)
        
-            self.plot_means(means_kd, sigmas_kdd)
+            #self.plot_means(means_kd, sigmas_kdd)
 
         return means_kd, sigmas_kdd
         
     #--------------------------------------------------------------------------
-    def em(self, k, n_iter=2):
+    def em_v(self, k, n_iter=2):
         """ Gmm 
             k is the number of Gaussian mixtures, meaning we have k
             separate Gaussian distributions, each represented by its own
@@ -352,7 +354,7 @@ class Mm():
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
         
-        self.plot_means(means_kd)
+        #self.plot_means(means_kd)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -372,7 +374,7 @@ class Mm():
 
             self.em_mstep_v(parameters, varz)
        
-            self.plot_means(means_kd, sigmas_kdd)
+            #self.plot_means(means_kd, sigmas_kdd)
 
         return means_kd, sigmas_kdd
                 
@@ -411,7 +413,7 @@ class Mm():
         plt.pause(0.001)
 
 #============================================================================
-class TestCrf(unittest.TestCase):
+class TestMm(unittest.TestCase):
     """ Self testing of each method """
     
     @classmethod
@@ -499,7 +501,7 @@ class TestCrf(unittest.TestCase):
         mm.plot_means(means,sigmas)
         #pause = input('Press enter when complete: ')
 
-    def test_em(self):
+    def test_em_v(self):
         #with open("points.dat") as f:
         with open("decep.dat") as f:
             data_mat = []
@@ -511,7 +513,7 @@ class TestCrf(unittest.TestCase):
         mm = Mm(data_mat)
         k = 2
         n_iter = 50
-        means, sigmas = mm.em(k, n_iter)
+        means, sigmas = mm.em_v(k, n_iter)
         print(means)
         mm.plot_means(means,sigmas)
         #pause = input('Press enter when complete: ')
@@ -544,15 +546,38 @@ class TestCrf(unittest.TestCase):
         print("\n...........unit testing of class Mm complete..............\n")
         
 #============================================================================
+class ProfileMm(unittest.TestCase):
+    """ SProfile the alternative methods of Mm """
+
+    def compare_all(self):
+        self.do_for('profile.dat',range(4,5),10)
+    
+    def do_for(self, data_file, k_range, n_iter):
+        with open(data_file) as f:
+            data_mat = []
+            for line in f:
+                sline = re.findall(r'[^,;\s]+', line)
+                assert(len(sline) == 2)  # eventually remove
+                data_mat.append(sline)
+        mm = Mm(data_mat)
+        k = 4 # TODO range
+        #cProfile.run('means, sigmas = mm.em_v(k, n_iter)')
+        cProfile.runctx('mm.em_v(k, n_iter)', globals(), locals())
+        cProfile.runctx('mm.em_for(k, n_iter)', globals(), locals())
+        #print(means)
+        #mm.plot_means(means,sigmas)
+        #pause = input('Press enter when complete: ')
+    
+
+#============================================================================
 if __name__ == '__main__':
+    profiler = ProfileMm()
+    profiler.compare_all()
     #test_em_simple()
+    '''
     try:
         unittest.main()
     except AssertionError:
         pass
-    
-# 11:00
-# 2:40 
-
-
+    '''
        
