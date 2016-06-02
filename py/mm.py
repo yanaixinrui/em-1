@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 
 """
@@ -32,7 +32,11 @@ except ImportError:
 
 import unittest
 import time
+
+#https://zameermanji.com/blog/2012/6/30/undocumented-cprofile-features/
 import cProfile
+import pstats 
+#import StringIO
 
 #============================================================================
 class Mm():
@@ -41,16 +45,21 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def __init__(self, point_list=[[]]): 
+        """ Allocates data structures and standardizes input data. 
+              New np array is allocated and data is copied from point_list.
+              Data is standardized using sklearn.preprocessing.
+            
+        """
         self.X_nd = np.array(point_list,copy = True, dtype=float) # X[i,point]
+
         self.mean_orig = self.X_nd.mean(axis=0)
         self.var_orig = self.X_nd.var(axis=0)
         self.X_nd = preprocessing.scale(self.X_nd)
         self.maxes = self.X_nd.max(axis=0) # ndarray [d]
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins
+        
         self.n,self.d = self.X_nd.shape 
-        #self.n_means = 1
-        #self.means = np.mat(np.zeros((n_means, self.d),float))
 
         plt.figure(figsize=(6,6))
     
@@ -63,9 +72,10 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def k_means(self, k, n_iter=2):
-        """ Lloyd's algorithm for solving k-means """
+        """ Lloyd's algorithm for solving k-means 
+            Code is not optimized. 
+        """
     
-        # Q: determine whether numpy compiles below statements into single cmd?
         means = np.random.rand(k,self.d) # [nm x d] mat
         means = means * self.ranges # [nm x d] * [d] 
         means = means + self.mins # [nm x d] + [d]
@@ -107,13 +117,12 @@ class Mm():
         return new_means
 
 
-
     #--------------------------------------------------------------------------
     def em_init(self, k):
         """ Allocates large np.array data structures for em algorithm. 
             returns:
                 parameters = [means, sigmas, pis]
-                vars = [resp_kn, prob_masses, dists, counts]
+                varz = [resp_kn, prob_masses, dists, counts]
         """
 
         # means  :[nm x d]
@@ -141,10 +150,9 @@ class Mm():
         return parameters, varz
 
 
-
     #--------------------------------------------------------------------------
     def em_estep(self, parameters, varz):
-        """ given parameters, calculate varz """
+        """ Non-vectorized vesion - given parameters, calculate varz """
         
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
@@ -154,7 +162,6 @@ class Mm():
             dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
-            # TODO: vectorize
             # calc prob masses & resp_kn
             for k_i in range(k):
                 prob_mass = pis_k[k_i] * dists[k_i].pdf(point)
@@ -173,7 +180,7 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def em_estep_v(self, parameters, varz):
-        """ given parameters, calculate varz """
+        """ Vectorized version - given parameters, calculate varz """
         
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts_k  = varz
@@ -197,7 +204,6 @@ class Mm():
             
         # it is doubtful that vectorizing this will help
         for k_i in range(k):
-            # TODO: vectorize
             # calc prob masses & resp_kn
             prob_masses[k_i,:] = pis_k[k_i] * dists[k_i].pdf(self.X_nd)
                                                 
@@ -225,7 +231,7 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def em_mstep(self, parameters, varz):
-        """ given varz, calculate parameters """
+        """ Non-vectorized - given varz, calculate parameters """
     
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
@@ -254,7 +260,6 @@ class Mm():
             sigmas_kdd[k_i].fill(0.)
 
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
-            # TODO: vectorize
             for k_i in range(k):
                 d = point - means_kd[k_i]
                 sigmas_kdd[k_i] += resp_kn[k_i,x_i] * np.outer(d,d)
@@ -267,7 +272,7 @@ class Mm():
 
     #--------------------------------------------------------------------------
     def em_mstep_v(self, parameters, varz):
-        """ given varz, calculate parameters """
+        """ Vectorized - given varz, calculate parameters """
     
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses, dists, counts  = varz
@@ -583,9 +588,9 @@ class ProfileMm(unittest.TestCase):
     """ SProfile the alternative methods of Mm """
 
     def compare_all(self):
-        self.do_for('profile.dat',range(4,5),10)
+        self.do_loop('test.dat',range(4,5),30)
     
-    def do_for(self, data_file, k_range, n_iter):
+    def do_loop(self, data_file, k_range, n_iter):
         with open(data_file) as f:
             data_mat = []
             for line in f:
@@ -595,17 +600,72 @@ class ProfileMm(unittest.TestCase):
         mm = Mm(data_mat)
         k = 4 # TODO range
         #cProfile.run('means, sigmas = mm.em_v(k, n_iter)')
-        cProfile.runctx('mm.em_v(k, n_iter)', globals(), locals())
-        cProfile.runctx('mm.em_for(k, n_iter)', globals(), locals())
+        cProfile.runctx('mm.em_v(k, n_iter)', globals(), locals(),'em_v_stats')
+        cProfile.runctx('mm.em_for(k, n_iter)', globals(), locals(),'em_for_stats')
+        
+        stats = pstats.Stats('em_v_stats')
+        stats.strip_dirs()
+        stats.sort_stats('filename')
+        stats.print_stats()
+
+        stats = pstats.Stats('em_for_stats')
+        stats.strip_dirs()
+        stats.sort_stats('filename')
+        stats.print_stats()
+        
+
         #print(means)
         #mm.plot_means(means,sigmas)
         #pause = input('Press enter when complete: ')
     
+    def generate_data_file(self, data_file, k, d, n):
+        """ Generates test data file for use in testing.
+                n samples
+                k number of means used
+                d dimensional
+            Means and covariances are randomly sampled over the unit hypercube.
+        """
+        
+        # means  :[k x d]
+        means_kd = np.random.rand(k,d) 
 
+        # sigmas :[k][d x d]
+        # must make sure that the matrix is symetric and
+        # the nondiagonal components Sij are <=  Sii and Sjj
+        sigmas_kdd = np.empty(k,dtype=object)
+        dists_k = np.empty(k,dtype=object)
+        for k_i in range(k):
+            sigmas_kdd[k_i] = 0.01 * np.eye(d,dtype=float)
+            dists_k[k_i] = multivariate_normal(means_kd[k_i], sigmas_kdd[k_i])
+        
+        
+        # (the mixing portion of each mean)
+        pis = np.random.rand(k)
+        pis /= pis.sum()  # normalize so sum is 1
+
+        counts_k = np.zeros(k,dtype=int)
+        for k_i in range(k-1):
+            counts_k[k_i] = int(n*pis[k_i])
+        counts_k[k-1] = n - counts_k.sum() 
+        
+        # generate data
+        X_nd = np.zeros((n,d), dtype=float)
+        index = 0
+        for k_i in range(k):    
+            X_nd[index:index+counts_k[k_i],:] = dists_k[k_i].rvs(counts_k[k_i])
+            index += counts_k[k_i]
+        
+        # write data to file
+        with open(data_file, 'w') as f:
+            for point in X_nd:
+                f.write(str(point)[1:-1]) # strip brackets
+                f.write('\n')
+        
+        print('data generation complete')
 #============================================================================
 if __name__ == '__main__':
     profiler = ProfileMm()
     profiler.compare_all()
-    #test_em_simple()
+    #profiler.generate_data_file('test.dat', 4, 2, 50000) # k d n
     #unittest.main()
         
