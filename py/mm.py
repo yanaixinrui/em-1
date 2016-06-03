@@ -9,20 +9,15 @@ Classes to implement Gaussian mixture model with EM
 import numpy as np
 import re
 
-#import itertools # for product
-#import sys        # for sys.float_info.max
-#from collections import defaultdict
+import sys        # for sys.argv
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
+#from mpl_toolkits.mplot3d import Axes3D
 
 from sklearn import preprocessing
-
-
 from scipy.stats import multivariate_normal
 import random
-from symbol import parameters
+#from symbol import parameters
 
 try:
     from scipy.misc  import logsumexp
@@ -664,8 +659,13 @@ class ProfileMm(unittest.TestCase):
         print('data generation complete')
 #============================================================================
 if __name__ == '__main__':
-    profiler = ProfileMm()
-    profiler.compare_all()
-    #profiler.generate_data_file('test.dat', 4, 2, 50000) # k d n
-    #unittest.main()
+    if (len(sys.argv) > 1):
+        if (sys.argv[1] == 'generate_test_data'):
+            profiler = ProfileMm()
+            profiler.generate_data_file('test.dat', 4, 2, 50000) # k d n
+        elif (sys.argv[1] == 'profile'):
+            profiler = ProfileMm()
+            profiler.compare_all()
+        else:
+            unittest.main()
         
