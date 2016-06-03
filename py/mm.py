@@ -413,6 +413,41 @@ class Mm():
         return means_kd, sigmas_kdd
                 
     #--------------------------------------------------------------------------
+    def em_gpu(self, k, n_iter=2):
+        """ gnumpy based implementation - Gmm 
+            k is the number of Gaussian mixtures, meaning we have k
+            separate Gaussian distributions, each represented by its own
+            mean and variance.
+            The graphical models is to roll a k-sided die --> 
+              then select a sample from the k'th distribution.
+              
+            probability is not represented in log form
+            
+        """
+
+        """
+        # INITIALIZE
+        parameters, varz = self.em_init(k)
+
+        means_kd, sigmas_kdd, pis_k          = parameters
+        resp_kn, prob_masses, dists, counts  = varz
+        
+        if __debug__:
+            self.plot_means(means_kd)
+        
+        # ITERATION LOOP
+        for i in range(n_iter):
+            self.em_estep_v(parameters,varz)            
+            self.em_mstep_v(parameters, varz)
+       
+            if __debug__:
+                self.plot_means(means_kd, sigmas_kdd)
+
+        return means_kd, sigmas_kdd
+        """
+        pass
+                         
+    #--------------------------------------------------------------------------
     def plot_means(self, means, sigmas=[]):
         # sigmas=[[[.1,0],[0,.1]],[[.1,0],[0,.1]]]
         
