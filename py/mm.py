@@ -695,6 +695,7 @@ class ProfileMm(unittest.TestCase):
         print('data generation complete')
         
         
+#============================================================================
 def process_decep_data(fname='decep.dat'):
     print('processing deception data')
     with open(fname) as f:
