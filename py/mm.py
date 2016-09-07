@@ -35,7 +35,8 @@ import pstats
 
 #============================================================================
 class Mm():
-    """ 
+    """ Mixture Model class which implements both k-means and EM Gaussian
+        mixture models.
     """
     
     #--------------------------------------------------------------------------
@@ -692,15 +693,37 @@ class ProfileMm(unittest.TestCase):
                 f.write('\n')
         
         print('data generation complete')
+        
+        
+def process_decep_data(fname='decep.dat'):
+    print('processing deception data')
+    with open(fname) as f:
+        data_mat = []
+        for line in f:
+            #sline = line.split(', ')
+            sline = re.findall(r'[^,;\s]+', line)
+            assert(len(sline) == 2)
+            data_mat.append(sline)
+    mm = Mm(data_mat)
+    k = 2
+    n_iter = 50
+    means, sigmas = mm.em_v(k, n_iter)
+    print(means)
+    mm.plot_means(means,sigmas)    
+        
 #============================================================================
 if __name__ == '__main__':
     if (len(sys.argv) > 1):
         if (sys.argv[1] == 'generate_test_data'):
             profiler = ProfileMm()
-            profiler.generate_data_file('test.dat', 4, 2, 50000) # k d n
+            profiler.generate_data_file('test.dat', 4, 3, 50000) # k d n
         elif (sys.argv[1] == 'profile'):
             profiler = ProfileMm()
             profiler.compare_all()
-        else:
-            unittest.main()
+        elif (sys.argv[1] == 'deception'):
+            # TODO
+            data_file = 'decep.dat' # change to your datafile
+            process_decep_data(data_file) 
+    else:
+        unittest.main()
         
