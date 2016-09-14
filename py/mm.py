@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-
 """
-------------------------------------------------------------------------------
-Classes to implement Gaussian mixture model with EM
-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+Classes to implement mixture model clustering. Includes kmeans and Gaussian 
+Mixture Model (MM) with Expectation Maximiz. (EM). Implementations are done in 
+both 'for loop' as well as vectorized Numpy for profiling comparison.
+-------------------------------------------------------------------------------
 """
 import numpy as np
 import re
@@ -50,7 +51,7 @@ class Mm():
 
         self.mean_orig = self.X_nd.mean(axis=0)
         self.var_orig = self.X_nd.var(axis=0)
-        self.X_nd = preprocessing.scale(self.X_nd)
+        self.X_nd = preprocessing.scale(self.X_nd) # this will standardize data
         self.maxes = self.X_nd.max(axis=0) # ndarray [d]
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins
@@ -427,24 +428,7 @@ class Mm():
         """
 
         """
-        # INITIALIZE
-        parameters, varz = self.em_init(k)
-
-        means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
-        
-        if __debug__:
-            self.plot_means(means_kd)
-        
-        # ITERATION LOOP
-        for i in range(n_iter):
-            self.em_estep_v(parameters,varz)            
-            self.em_mstep_v(parameters, varz)
-       
-            if __debug__:
-                self.plot_means(means_kd, sigmas_kdd)
-
-        return means_kd, sigmas_kdd
+        TODO
         """
         pass
                          
