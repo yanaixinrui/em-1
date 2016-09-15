@@ -47,10 +47,12 @@ class Mm():
               Data is standardized using sklearn.preprocessing.
             
         """
-        self.X_nd = np.array(point_list,copy = True, dtype=float) # X[i,point]
+        self.X_nd = np.array(point_list, copy = True, dtype=float) # X[i,point]
 
         self.mean_orig = self.X_nd.mean(axis=0)
         self.var_orig = self.X_nd.var(axis=0)
+
+        # X_nd is the main data variable used
         self.X_nd = preprocessing.scale(self.X_nd) # this will standardize data
         self.maxes = self.X_nd.max(axis=0) # ndarray [d]
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
@@ -465,6 +467,18 @@ class Mm():
     
         plt.pause(0.001)
 
+    #--------------------------------------------------------------------------
+    # TODO
+    def calc_mse(self, means, sigmas):
+        """ given a set of means and sigmas
+              for each point (in self.X_nd)
+                find the closest mean
+                add the sq distance to mse
+            divide by N to get mean
+
+            returns the total MSE
+         """
+
 #============================================================================
 class TestMm(unittest.TestCase):
     """ Self testing of each method """
@@ -681,6 +695,18 @@ class ProfileMm(unittest.TestCase):
         
 #============================================================================
 def process_decep_data(fname='decep.dat'):
+    """ TODO:
+          currently the code loads decep.dat, then runs clustering with K=2
+           
+          we need to modify the code to:
+             1. instead load our csv file
+               for each pair of colums:
+               2. grab data
+               3. run clustering on it
+               4. run the evaluation code (mse) on the result
+               5. you will write the results (mu, sigma, and mse) to a file
+
+    """
     print('processing deception data')
     with open(fname) as f:
         data_mat = []
@@ -693,9 +719,14 @@ def process_decep_data(fname='decep.dat'):
     k = 2
     n_iter = 50
     means, sigmas = mm.em_v(k, n_iter)
+    
+    # TODO, try out code below
+    #mm.calc_mse(means, sigmas)
+
     print(means)
     mm.plot_means(means,sigmas)    
         
+
 #============================================================================
 if __name__ == '__main__':
     if (len(sys.argv) > 1):
