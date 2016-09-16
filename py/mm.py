@@ -9,6 +9,7 @@ both 'for loop' as well as vectorized Numpy for profiling comparison.
 """
 import numpy as np
 import re
+import csv
 
 import sys        # for sys.argv
 
@@ -19,6 +20,7 @@ from sklearn import preprocessing
 from scipy.stats import multivariate_normal
 import random
 #from symbol import parameters
+
 
 try:
     from scipy.misc  import logsumexp
@@ -435,13 +437,22 @@ class Mm():
         pass
                          
     #--------------------------------------------------------------------------
-    def plot_means(self, means, sigmas=[]):
-        # sigmas=[[[.1,0],[0,.1]],[[.1,0],[0,.1]]]
-        
+    def plot_means(self, means, sigmas=[], tags=[]):
+        """ Plots the datapoints along with topographic map of means
+            and sigmas.  Works only for 2D data.
+            tags is used to specify different classes for the datapoints 
+            so the they are colored differently.
+            
+            example format:
+              sigmas=[[[.1,0],[0,.1]],[[.1,0],[0,.1]]]
+              tags = ['1','0','1','1','0'] # length n 
+        """
         plt.clf()
         
-        # plot data
-        plt.scatter(self.X_nd[:,0], self.X_nd[:,1])
+        # If we got a tags arg, color points green for '1', red for '0'
+        # otherwise color the points blank (white)
+        colors = ['g' if x == '1' else 'r' for x in tags]
+        plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
         
         # plot means
         plt.scatter(means[:,0], means[:,1], s=300,c='r')
@@ -694,7 +705,7 @@ class ProfileMm(unittest.TestCase):
         
         
 #============================================================================
-def process_decep_data(fname='decep.dat'):
+def process_decep_data(fname='m_out_abs.csv'):
     """ TODO:
           currently the code loads decep.dat, then runs clustering with K=2
            
@@ -708,6 +719,28 @@ def process_decep_data(fname='decep.dat'):
 
     """
     print('processing deception data')
+
+    f = open(fname, 'rt')
+    data = []
+    try:
+        reader = csv.reader(f)
+        header = next(reader)
+        for row in reader:
+            data.append(np.array(row))
+            #data.append(row)
+    finally:
+        f.close()
+    
+    data = np.array(data) # data[filenum, datafield] # all data is strings, even numbers
+    print(data.shape)
+    print(header)
+    
+    IsTrue = np.array(data[:,2], float)
+    print('(n_files,n_fields)=', data.shape)        
+    
+    data_mat = data[1:,[3,7]] # we only want ResponseTime and joy columns
+    is_true = data[1:,2]      # truth or bluff?
+    '''
     with open(fname) as f:
         data_mat = []
         for line in f:
@@ -715,6 +748,7 @@ def process_decep_data(fname='decep.dat'):
             sline = re.findall(r'[^,;\s]+', line)
             assert(len(sline) == 2)
             data_mat.append(sline)
+    '''
     mm = Mm(data_mat)
     k = 2
     n_iter = 50
@@ -724,8 +758,8 @@ def process_decep_data(fname='decep.dat'):
     #mm.calc_mse(means, sigmas)
 
     print(means)
-    mm.plot_means(means,sigmas)    
-        
+    mm.plot_means(means,sigmas,is_true)    
+    pass    
 
 #============================================================================
 if __name__ == '__main__':
@@ -738,7 +772,7 @@ if __name__ == '__main__':
             profiler.compare_all()
         elif (sys.argv[1] == 'deception'):
             # TODO
-            data_file = 'decep.dat' # change to your datafile
+            data_file = 'm_out_abs.csv' # change to your datafile
             process_decep_data(data_file) 
     else:
         unittest.main()
