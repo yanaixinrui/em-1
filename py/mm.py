@@ -43,20 +43,15 @@ class Mm():
               Data is standardized using sklearn.preprocessing.
             
         """
+        self.MIN_VAR = 0.000001 # min variance for GMM (for numer. stability)
         self.X_nd = np.array(point_list, copy = True, dtype=float) # X[i,point]
+        self.n,self.d = self.X_nd.shape 
 
         self.mean_orig = self.X_nd.mean(axis=0)
         self.var_orig = self.X_nd.var(axis=0)
-
-        # X_nd is the main data variable used
-        self.X_nd -= self.mean_orig       # make mean 0
-        self.X_nd /= (self.var_orig**0.5) # make variance 1 for each dim
-        # note that nondiagonal covariance is not removed
         self.maxes = self.X_nd.max(axis=0) # ndarray [d]
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
-        self.ranges = self.maxes - self.mins
-        
-        self.n,self.d = self.X_nd.shape 
+        self.ranges = self.maxes - self.mins        
 
         plt.figure(figsize=(6,6))
     
@@ -70,7 +65,12 @@ class Mm():
     #--------------------------------------------------------------------------
     def k_means(self, k, n_iter=2):
         """ Lloyd's algorithm for solving k-means (aka hard k-means)
-            Code is not optimized. 
+            Code is not optimized. Note: you should standardize
+            self.X_nd first if you don't want to minimize straight forward 
+            Euclidian distance.
+            
+            returns: 
+                means_kd # np.array
         """
     
         means_kd = np.random.rand(k,self.d) # [nm x d] mat
@@ -109,17 +109,20 @@ class Mm():
             means_kd = new_means_kd
             self.plot_means(means_kd)
         
-        new_means_kd *= np.sqrt(self.var_orig)
-        new_means_kd += self.mean_orig
+        #new_means_kd *= np.sqrt(self.var_orig)
+        #new_means_kd += self.mean_orig
 
         return new_means_kd
 
     #--------------------------------------------------------------------------
     def em_init(self, k):
         """ Allocates large np.array data structures for em algorithm. 
+        
             returns:
-                parameters = [means, sigmas, pis]
-                varz = [resp_kn, prob_masses, dists, counts]
+                parameters = [means_kd, sigmas_k, pis_k]
+                varz = [resp_kn,        # the responsibility of each Gaussian
+                        prob_masses_kn, # each point's prob. for each Gaussian
+                        counts_k]       # the num of points in each Gaussian
         """
 
         # means  :[nm x d]
@@ -136,31 +139,31 @@ class Mm():
         # (the mixing portion of each mean)
         pis_k = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
 
-        dists = np.empty(k,dtype=object)
-        prob_masses = np.zeros((k,self.n),dtype=float)
+        prob_masses_kn = np.zeros((k,self.n),dtype=float)
         resp_kn = np.zeros((k,self.n),dtype=float)
 
         counts = np.zeros(k,dtype=float)
         parameters = [means_kd, sigmas_k, pis_k]
-        varz = [resp_kn, prob_masses, dists, counts]
+        varz = [resp_kn, prob_masses_kn, counts]
         
         return parameters, varz
 
     #--------------------------------------------------------------------------
     def em_estep(self, parameters, varz):
-        """ Non-vectorized vesion - given parameters, calculate varz """
+        """ Non-vectorized vesion - given parameters, calculates varz """
         
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
+        resp_kn, prob_masses, counts  = varz
         k = len(pis_k)
+        dists_k = np.empty(k,dtype=object)
         
         for k_i in range(k):
-            dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
+            dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # calc prob masses & resp_kn
             for k_i in range(k):
-                prob_mass = pis_k[k_i] * dists[k_i].pdf(point)
+                prob_mass = pis_k[k_i] * dists_k[k_i].pdf(point)
                 prob_masses[k_i,x_i] = prob_mass
                                                 
             # normalize responsibilities
@@ -173,14 +176,15 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def em_estep_v(self, parameters, varz):
-        """ Vectorized version - given parameters, calculate varz """
+        """ Vectorized version - given parameters, calculates varz """
         
         means_kd, sigmas_kdd, pis_k            = parameters
-        resp_kn, prob_masses, dists, counts_k  = varz
+        resp_kn, prob_masses, counts_k  = varz
         k = len(pis_k)
-        
+        dists_k = np.empty(k,dtype=object)
+                
         for k_i in range(k):
-            dists[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
+            dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -198,7 +202,7 @@ class Mm():
         # it is doubtful that vectorizing this will help
         for k_i in range(k):
             # calc prob masses & resp_kn
-            prob_masses[k_i,:] = pis_k[k_i] * dists[k_i].pdf(self.X_nd)
+            prob_masses[k_i,:] = pis_k[k_i] * dists_k[k_i].pdf(self.X_nd)
                                                 
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -207,7 +211,8 @@ class Mm():
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         '''
         # normalize responsibilities
-        resp_kn[:,:] = np.divide(prob_masses, np.sum(prob_masses, axis=0)[np.newaxis,:])
+        resp_kn[:,:] = np.divide(prob_masses, 
+                                 np.sum(prob_masses, axis=0)[np.newaxis,:])
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
          
@@ -218,10 +223,10 @@ class Mm():
 
     #--------------------------------------------------------------------------
     def em_mstep(self, parameters, varz):
-        """ Non-vectorized - given varz, calculate parameters """
+        """ Non-vectorized - given varz, calculates parameters """
     
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
+        resp_kn, prob_masses, counts  = varz
         k = len(pis_k)
         
         # calc means
@@ -252,14 +257,14 @@ class Mm():
                 
         for k_i in range(k):
             sigmas_kdd[k_i] /= counts[k_i]                
-            sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
+            sigmas_kdd[k_i] += self.MIN_VAR * np.eye(self.d) # prevent singularity
 
     #--------------------------------------------------------------------------
     def em_mstep_v(self, parameters, varz):
         """ Vectorized - given varz, calculate parameters """
     
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
+        resp_kn, prob_masses, counts  = varz
         k = len(pis_k)
         
         # calc means
@@ -324,7 +329,7 @@ class Mm():
         parameters, varz = self.em_init(k)
 
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
+        resp_kn, prob_masses, counts  = varz
         
         if __debug__:
             self.plot_means(means_kd)
@@ -370,8 +375,8 @@ class Mm():
         
         parameters, varz = self.em_init(k)
 
-        means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, dists, counts  = varz
+        means_kd, sigmas_kdd, pis_k   = parameters
+        resp_kn, prob_masses, counts  = varz
         
         if __debug__:
             self.plot_means(means_kd)
@@ -432,7 +437,10 @@ class Mm():
         
         # If we got a tags arg, color points green for '1', red for '0'
         # otherwise color the points blank (white)
-        colors = ['g' if x == '1' else 'r' for x in tags]
+        if tags:
+            colors = ['g' if x == '1' else 'r' for x in tags]
+        else:
+            colors = 'k'
         plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
         
         # plot means
@@ -528,14 +536,14 @@ class TestMm(unittest.TestCase):
         mm.plot_means(means)
         plt.title('test_em_for_simple')
         
-        self.assertTrue((abs(means[0,0] - 0.995) < 0.01 and \
-                         abs(means[0,1] - 0.995) < 0.01) or \
-                       (abs(means[0,0] + 0.995) < 0.01 and \
-                        abs(means[0,1] + 0.995) < 0.01) )
-        self.assertTrue((abs(means[1,0] - 0.995) < 0.01 and \
-                         abs(means[1,1] - 0.995) < 0.01) or \
-                       (abs(means[1,0] + 0.995) < 0.01 and \
-                        abs(means[1,1] + 0.995) < 0.01) )
+        self.assertTrue((abs(means[0,0] - 1.05) < 0.01 and \
+                         abs(means[0,1] - 0.95) < 0.01) or \
+                       (abs(means[0,0] - 2.05) < 0.01 and \
+                        abs(means[0,1] - 2.00) < 0.01) )
+        self.assertTrue((abs(means[1,0] - 2.05) < 0.01 and \
+                         abs(means[1,1] - 2.00) < 0.01) or \
+                       (abs(means[1,0] - 1.05) < 0.01 and \
+                        abs(means[1,1] - 0.95) < 0.01) )
         
     #@unittest.skip
     def test_k_means(self):
