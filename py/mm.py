@@ -77,45 +77,46 @@ class Mm():
             Code is not optimized. 
         """
     
-        means = np.random.rand(k,self.d) # [nm x d] mat
-        means = means * self.ranges # [nm x d] * [d] 
-        means = means + self.mins # [nm x d] + [d]
+        means_kd = np.random.rand(k,self.d) # [nm x d] mat
+        means_kd = means_kd * self.ranges # [nm x d] * [d] 
+        means_kd = means_kd + self.mins # [nm x d] + [d]
         
-        self.plot_means(means)
+        self.plot_means(means_kd)
 
         for i in range(n_iter):
             # given the current means, calculate counts for each
-            count_of_each_mean = np.zeros(k, dtype=float)
-            point_sum = np.zeros((k,self.d), dtype=float)
+            count_of_each_mean_k = np.zeros(k, dtype=float)
+            point_sum_kd = np.zeros((k,self.d), dtype=float)
             
             # TODO: vectorize this for loop
             for point in self.X_nd: # point is a row [1 x 2]
                 # the "probability mass" is just inverse distance sq
-                difference =  (means - point)          # [nm x d] - [1 x d]
+                difference =  (means_kd - point)          # [nm x d] - [1 x d]
                 dist_sq = np.sum((difference * difference), axis=1)
                 prob_mass = np.reciprocal(dist_sq)  # [2 x 1]
                 max_mean_i = np.argmax(prob_mass)
-                count_of_each_mean[max_mean_i] += 1 
-                point_sum[max_mean_i] += point
+                count_of_each_mean_k[max_mean_i] += 1 
+                point_sum_kd[max_mean_i] += point
                     
             # check for zeros
             for  k_i in range(k):
-                if(count_of_each_mean[k_i] == 0):
+                if(count_of_each_mean_k[k_i] == 0):
                     # randomly assign a point (with a little noise) from data 
                     # set to this mean
-                    count_of_each_mean[k_i] = 1
-                    point_sum[max_mean_i] = self.X_nd[random.randrange(self.n)]
-                    point_sum[max_mean_i][0] += random.random() - 0.5
+                    count_of_each_mean_k[k_i] = 1
+                    point_sum_kd[max_mean_i] = self.X_nd[random.randrange(self.n)]
+                    point_sum_kd[max_mean_i][0] += random.random() - 0.5
                     
             #          [n_means x d] / [n_means]
-            new_means = np.divide(point_sum, count_of_each_mean[:,np.newaxis]) 
-            means = new_means
-            self.plot_means(means)
+            new_means_kd = np.divide(point_sum_kd, 
+                                     count_of_each_mean_k[:,np.newaxis])
+            means_kd = new_means_kd
+            self.plot_means(means_kd)
         
-        new_means *= np.sqrt(self.var_orig)
-        new_means += self.mean_orig
+        new_means_kd *= np.sqrt(self.var_orig)
+        new_means_kd += self.mean_orig
 
-        return new_means
+        return new_means_kd
 
 
     #--------------------------------------------------------------------------
@@ -127,26 +128,26 @@ class Mm():
         """
 
         # means  :[nm x d]
-        means = np.random.rand(k,self.d) 
-        means *= self.ranges  
-        means += self.mins 
+        means_kd = np.random.rand(k,self.d) 
+        means_kd *= self.ranges  
+        means_kd += self.mins 
 
         # sigmas :[k][d x d]
-        sigmas = np.empty(k,dtype=object)
+        sigmas_k = np.empty(k,dtype=object)
         for k_i in range(k):
-            sigmas[k_i] = 0.1 * np.eye(self.d, dtype=float)
+            sigmas_k[k_i] = 0.1 * np.eye(self.d, dtype=float)
 
         # pis    :[k]
         # (the mixing portion of each mean)
-        pis = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
+        pis_k = np.ones(k, dtype=float)*(1/k) # start w uniform distribution
 
         dists = np.empty(k,dtype=object)
         prob_masses = np.zeros((k,self.n),dtype=float)
         resp_kn = np.zeros((k,self.n),dtype=float)
 
         counts = np.zeros(k,dtype=float)
-        parameters = [means, sigmas, pis]
-        varz = [resp_kn, prob_masses, dists,counts]
+        parameters = [means_kd, sigmas_k, pis_k]
+        varz = [resp_kn, prob_masses, dists, counts]
         
         return parameters, varz
 
@@ -183,7 +184,7 @@ class Mm():
     def em_estep_v(self, parameters, varz):
         """ Vectorized version - given parameters, calculate varz """
         
-        means_kd, sigmas_kdd, pis_k          = parameters
+        means_kd, sigmas_kdd, pis_k            = parameters
         resp_kn, prob_masses, dists, counts_k  = varz
         k = len(pis_k)
         
@@ -437,7 +438,7 @@ class Mm():
         pass
                          
     #--------------------------------------------------------------------------
-    def plot_means(self, means, sigmas=[], tags=[]):
+    def plot_means(self, means, sigmas=np.array([]), tags=[]):
         """ Plots the datapoints along with topographic map of means
             and sigmas.  Works only for 2D data.
             tags is used to specify different classes for the datapoints 
@@ -458,7 +459,7 @@ class Mm():
         plt.scatter(means[:,0], means[:,1], s=300,c='r')
 
         # plot sigmas
-        if(sigmas != []):
+        if sigmas.size != 0:
             for k_i in range(len(sigmas)):
                 x_vals = np.linspace(self.mins[0], self.maxes[0], 50)
                 y_vals = np.linspace(self.mins[1], self.maxes[1], 50)
@@ -504,14 +505,14 @@ class TestMm(unittest.TestCase):
         """ runs once before EACH test """
         pass
 
-    @unittest.skip
+    #@unittest.skip
     def test_init(self):
         print("\n...testing init(...)")
         a = [[1,2,3],[4,5,6]]
-        m = Mm(a)
-        print(m)
+        mm = Mm(a)
+        print(mm)
     
-    @unittest.skip
+    #@unittest.skip
     def test_k_means_simple(self):
         print("\n...test_k_means_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
@@ -528,26 +529,30 @@ class TestMm(unittest.TestCase):
                        (abs(means[1,0] - 1.05) < 0.01 and \
                         abs(means[1,1] - 1.05) < 0.01) )
 
-    @unittest.skip
+    #@unittest.skip
     def test_em_for_simple(self):
-        print("\n...test_simple(...)")
+        print("\n...test_em_for_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 0.9; 2.1,2.0')
         mm = Mm(data_mat)
         #print(mm)
         
-        means = mm.em_for(2, 20)
-        #print(means)
-        #mm.plot_means(means)
+        means, sigmas = mm.em_for(2, 20)
+        print(means)
+        mm.plot_means(means)
+        plt.title('test_em_for_simple')
         
-        '''
-        self.assertTrue(((means[0,0] == 1.05) and (means[0,1] == 1.05)) or \
-                   ((means[1,0] == 1.05) and (means[1,1] == 1.05)) )
-        self.assertTrue(((means[0,0] == 2.05) and (means[0,1] == 2.05)) or \
-                   ((means[1,0] == 2.05) and (means[1,1] == 2.05)) )
-        '''
+        self.assertTrue((abs(means[0,0] - 0.995) < 0.01 and \
+                         abs(means[0,1] - 0.995) < 0.01) or \
+                       (abs(means[0,0] + 0.995) < 0.01 and \
+                        abs(means[0,1] + 0.995) < 0.01) )
+        self.assertTrue((abs(means[1,0] - 0.995) < 0.01 and \
+                         abs(means[1,1] - 0.995) < 0.01) or \
+                       (abs(means[1,0] + 0.995) < 0.01 and \
+                        abs(means[1,1] + 0.995) < 0.01) )
         
-    @unittest.skip
-    def test_k_means_load(self):
+    #@unittest.skip
+    def test_k_means(self):
+        print("\n...test_k_means(...)")
         with open("points.dat") as f:
             data_mat = []
             for line in f:
@@ -560,11 +565,12 @@ class TestMm(unittest.TestCase):
         means = mm.k_means(k, n_iter)
         print(means)
         mm.plot_means(means)
+        plt.title('test_k_means')
 
-    @unittest.skip
+    #@unittest.skip
     def test_em_for(self):
-        #with open("points.dat") as f:
-        with open("decep.dat") as f:
+        print("\n...test_em_for(...)")
+        with open("points.dat") as f:
             data_mat = []
             for line in f:
                 #sline = line.split(', ')
@@ -577,11 +583,12 @@ class TestMm(unittest.TestCase):
         means, sigmas = mm.em_for(k, n_iter)
         print(means)
         mm.plot_means(means,sigmas)
+        plt.title('test_em_for')
         #pause = input('Press enter when complete: ')
 
     def test_em_v(self):
-        #with open("points.dat") as f:
-        with open("decep.dat") as f:
+        print("\n...test_em_v(...)")
+        with open("points.dat") as f:
             data_mat = []
             for line in f:
                 #sline = line.split(', ')
@@ -594,12 +601,13 @@ class TestMm(unittest.TestCase):
         means, sigmas = mm.em_v(k, n_iter)
         print(means)
         mm.plot_means(means,sigmas)
+        plt.title('test_em_v')        
         #pause = input('Press enter when complete: ')
 
-    @unittest.skip
+    #@unittest.skip
     def test_em_for2(self):
+        print("\n...test_em_for2(...)")
         with open("points.dat") as f:
-        #with open("decep.dat") as f:
             data_mat = []
             for line in f:
                 #sline = line.split(', ')
@@ -612,7 +620,8 @@ class TestMm(unittest.TestCase):
             means, sigmas = mm.em_for(k, n_iter)
             print(means)
             mm.plot_means(means,sigmas)
-            pause = input('Press enter when complete: ')
+            plt.title('test_em_for2')
+            #pause = input('Press enter when complete: ')
 
 
     def tearDown(self):
