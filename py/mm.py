@@ -14,13 +14,8 @@ import csv
 import sys        # for sys.argv
 
 import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D
-
-from sklearn import preprocessing
 from scipy.stats import multivariate_normal
 import random
-#from symbol import parameters
-
 
 try:
     from scipy.misc  import logsumexp
@@ -34,7 +29,6 @@ import time
 #https://zameermanji.com/blog/2012/6/30/undocumented-cprofile-features/
 import cProfile
 import pstats 
-#import StringIO
 
 #============================================================================
 class Mm():
@@ -55,7 +49,9 @@ class Mm():
         self.var_orig = self.X_nd.var(axis=0)
 
         # X_nd is the main data variable used
-        self.X_nd = preprocessing.scale(self.X_nd) # this will standardize data
+        self.X_nd -= self.mean_orig       # make mean 0
+        self.X_nd /= (self.var_orig**0.5) # make variance 1 for each dim
+        # note that nondiagonal covariance is not removed
         self.maxes = self.X_nd.max(axis=0) # ndarray [d]
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins
@@ -73,7 +69,7 @@ class Mm():
     
     #--------------------------------------------------------------------------
     def k_means(self, k, n_iter=2):
-        """ Lloyd's algorithm for solving k-means 
+        """ Lloyd's algorithm for solving k-means (aka hard k-means)
             Code is not optimized. 
         """
     
@@ -118,7 +114,6 @@ class Mm():
 
         return new_means_kd
 
-
     #--------------------------------------------------------------------------
     def em_init(self, k):
         """ Allocates large np.array data structures for em algorithm. 
@@ -151,7 +146,6 @@ class Mm():
         
         return parameters, varz
 
-
     #--------------------------------------------------------------------------
     def em_estep(self, parameters, varz):
         """ Non-vectorized vesion - given parameters, calculate varz """
@@ -176,9 +170,6 @@ class Mm():
         # calc counts (Nk)
         for k_i in range(k):
             counts[k_i] = np.sum(resp_kn[k_i,:])
-
-        return
-    
     
     #--------------------------------------------------------------------------
     def em_estep_v(self, parameters, varz):
@@ -217,20 +208,14 @@ class Mm():
         '''
         # normalize responsibilities
         resp_kn[:,:] = np.divide(prob_masses, np.sum(prob_masses, axis=0)[np.newaxis,:])
-        # TODO: vreate a vectorized assert
+        # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
          
-        
-        
         # calc counts (Nk)
         #for k_i in range(k):
         #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
         counts_k[:] = np.sum(resp_kn, axis=1)
 
-        return
-    
-    
-    
     #--------------------------------------------------------------------------
     def em_mstep(self, parameters, varz):
         """ Non-vectorized - given varz, calculate parameters """
@@ -256,7 +241,6 @@ class Mm():
             pis_k[k_i] = counts[k_i]/total_counts
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
-
         # calc sigmas
         for k_i in range(k):
             sigmas_kdd[k_i].fill(0.)
@@ -269,8 +253,6 @@ class Mm():
         for k_i in range(k):
             sigmas_kdd[k_i] /= counts[k_i]                
             sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
-
-        return
 
     #--------------------------------------------------------------------------
     def em_mstep_v(self, parameters, varz):
@@ -322,8 +304,6 @@ class Mm():
         for k_i in range(k):
             sigmas_kdd[k_i] /= counts[k_i]                
             sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
-
-        return
 
     #--------------------------------------------------------------------------
     def em_for(self, k, n_iter=2):
@@ -480,7 +460,6 @@ class Mm():
         plt.pause(0.001)
 
     #--------------------------------------------------------------------------
-    # TODO
     def calc_mse(self, means, sigmas):
         """ given a set of means and sigmas
               for each point (in self.X_nd)
@@ -489,7 +468,15 @@ class Mm():
             divide by N to get mean
 
             returns the total MSE
-         """
+        """
+        # TODO        
+        pass
+    
+    #--------------------------------------------------------------------------
+    def calc_P(self, means, sigmas):
+        """ returns the probability of the data """
+        # TODO        
+        pass
 
 #============================================================================
 class TestMm(unittest.TestCase):
@@ -661,11 +648,6 @@ class ProfileMm(unittest.TestCase):
         stats.strip_dirs()
         stats.sort_stats('filename')
         stats.print_stats()
-        
-
-        #print(means)
-        #mm.plot_means(means,sigmas)
-        #pause = input('Press enter when complete: ')
     
     def generate_data_file(self, data_file, k, d, n):
         """ Generates test data file for use in testing.
@@ -721,10 +703,10 @@ def process_decep_data(fname='m_out_abs.csv'):
           we need to modify the code to:
              1. instead load our csv file
                for each pair of colums:
-               2. grab data
+               2. grab subdata
                3. run clustering on it
                4. run the evaluation code (mse) on the result
-               5. you will write the results (mu, sigma, and mse) to a file
+               5. write the results (mu, sigma, and mse) to a file
 
     """
     print('processing deception data')
@@ -767,8 +749,7 @@ def process_decep_data(fname='m_out_abs.csv'):
     #mm.calc_mse(means, sigmas)
 
     print(means)
-    mm.plot_means(means,sigmas,is_true)    
-    pass    
+    mm.plot_means(means,sigmas,is_true)     
 
 #============================================================================
 if __name__ == '__main__':
