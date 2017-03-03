@@ -133,7 +133,8 @@ class Mm():
         # sigmas :[k][d x d]
         sigmas_k = np.empty(k,dtype=object)
         for k_i in range(k):
-            sigmas_k[k_i] = 0.1 * np.eye(self.d, dtype=float)
+            #sigmas_k[k_i] = 0.1 * np.eye(self.d, dtype=float)
+            sigmas_k[k_i] = self.var_orig * np.eye(self.d, dtype=float)
 
         # pis    :[k]
         # (the mixing portion of each mean)
@@ -757,7 +758,32 @@ def process_decep_data(fname='m_out_abs.csv'):
     #mm.calc_mse(means, sigmas)
 
     print(means)
-    mm.plot_means(means,sigmas,is_true)     
+    mm.plot_means(means,sigmas,is_true)    
+    
+#============================================================================
+def voice():
+    with open("voice.dat") as f:
+        data_mat = []
+        for line in f:
+            sline = line.split()
+            #sline = re.findall(r'[^,;\s]+', line)
+            assert(len(sline) == 2)
+            data_mat.append(sline)
+    mm = Mm(data_mat)
+    k = 2
+    n_iter = 50
+    means, sigmas = mm.em_v(k, n_iter)
+    print(means)
+    mm.plot_means(means,sigmas)
+
+    plt.figure()
+    k = 3
+    n_iter = 50
+    means, sigmas = mm.em_v(k, n_iter)
+    print(means)
+    mm.plot_means(means,sigmas)
+    
+    pause = input('Press enter when complete: ')
 
 #============================================================================
 if __name__ == '__main__':
@@ -772,6 +798,8 @@ if __name__ == '__main__':
             # TODO
             data_file = 'm_out_abs.csv' # change to your datafile
             process_decep_data(data_file) 
+        elif (sys.argv[1] == 'voice'):
+            voice()
     else:
         unittest.main()
         
