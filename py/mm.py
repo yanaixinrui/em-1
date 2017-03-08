@@ -5,6 +5,10 @@
 Classes to implement mixture model clustering. Includes kmeans and Gaussian 
 Mixture Model (MM) with Expectation Maximiz. (EM). Implementations are done in 
 both 'for loop' as well as vectorized Numpy for profiling comparison.
+
+To run individual unittests:
+    $ python3 mm.py TestMm.test_k_means_simple
+
 -------------------------------------------------------------------------------
 """
 import numpy as np
@@ -37,15 +41,23 @@ class Mm():
     """
     
     #--------------------------------------------------------------------------
-    def __init__(self, point_list=[[]]): 
+    def __init__(self, point_list=[[]],point_weights=[]): 
         """ Allocates data structures and standardizes input data. 
               New np array is allocated and data is copied from point_list.
               Data is standardized using sklearn.preprocessing.
             
         """
         self.MIN_VAR = 0.000001 # min variance for GMM (for numer. stability)
-        self.X_nd = np.array(point_list, copy = True, dtype=float) # X[i,point]
+        self.X_nd = np.array(point_list, copy=True, dtype=float) # X[i,point]
         self.n,self.d = self.X_nd.shape 
+        if point_weights == []:
+            self.X_weights_n = np.ones(self.n)
+        else:
+            assert (len(point_weights) == self.n), \
+                'len(point_weights) != len(point_list)' 
+            self.X_weights_n = np.array(point_weights, copy=True, dtype=float)
+            # normalize weights so that they sum to n
+            self.X_weights_n *= self.n/sum(self.X_weights_n)
 
         self.mean_orig = self.X_nd.mean(axis=0)
         self.var_orig = self.X_nd.var(axis=0)
@@ -80,28 +92,30 @@ class Mm():
         self.plot_means(means_kd)
 
         for i in range(n_iter):
-            # given the current means, calculate counts for each
+            # Given the current means, calculate counts_k for each
+  
             count_of_each_mean_k = np.zeros(k, dtype=float)
             point_sum_kd = np.zeros((k,self.d), dtype=float)
             
             # TODO: vectorize this for loop
-            for point in self.X_nd: # point is a row [1 x 2]
+            for i,point_d in enumerate(self.X_nd): # point is a row [1 x 2]
                 # the "probability mass" is just inverse distance sq
-                difference =  (means_kd - point)          # [nm x d] - [1 x d]
-                dist_sq = np.sum((difference * difference), axis=1)
-                prob_mass = np.reciprocal(dist_sq)  # [2 x 1]
-                max_mean_i = np.argmax(prob_mass)
-                count_of_each_mean_k[max_mean_i] += 1 
-                point_sum_kd[max_mean_i] += point
+                difference_kd =  (means_kd - point_d)          # [nm x d] - [1 x d]
+                dist_sq_k = np.sum((difference_kd * difference_kd), axis=1)
+                prob_mass_k = np.reciprocal(dist_sq_k)  # [2 x 1]
+                max_mean_j = np.argmax(prob_mass_k)
+                count_of_each_mean_k[max_mean_j] += self.X_weights_n[i] 
+                point_sum_kd[max_mean_j] += point_d*self.X_weights_n[i]
                     
             # check for zeros
             for  k_i in range(k):
                 if(count_of_each_mean_k[k_i] == 0):
                     # randomly assign a point (with a little noise) from data 
                     # set to this mean
-                    count_of_each_mean_k[k_i] = 1
-                    point_sum_kd[max_mean_i] = self.X_nd[random.randrange(self.n)]
-                    point_sum_kd[max_mean_i][0] += random.random() - 0.5
+                    point_i = random.randrange(self.n)
+                    count_of_each_mean_k[k_i] = self.X_weights_n[point_i]
+                    point_sum_kd[k_i] = self.X_nd[point_i]
+                    point_sum_kd[k_i][0] += random.random() - 0.5
                     
             #          [n_means x d] / [n_means]
             new_means_kd = np.divide(point_sum_kd, 
@@ -143,9 +157,9 @@ class Mm():
         prob_masses_kn = np.zeros((k,self.n),dtype=float)
         resp_kn = np.zeros((k,self.n),dtype=float)
 
-        counts = np.zeros(k,dtype=float)
+        counts_k = np.zeros(k,dtype=float)
         parameters = [means_kd, sigmas_k, pis_k]
-        varz = [resp_kn, prob_masses_kn, counts]
+        varz = [resp_kn, prob_masses_kn, counts_k]
         
         return parameters, varz
 
@@ -154,7 +168,7 @@ class Mm():
         """ Non-vectorized vesion - given parameters, calculates varz """
         
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, counts  = varz
+        resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         dists_k = np.empty(k,dtype=object)
         
@@ -164,23 +178,23 @@ class Mm():
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # calc prob masses & resp_kn
             for k_i in range(k):
-                prob_mass = pis_k[k_i] * dists_k[k_i].pdf(point)
-                prob_masses[k_i,x_i] = prob_mass
+                prob_mass = pis_k[k_i] * dists_k[k_i].pdf(point) * self.X_weights_n[x_i]
+                prob_masses_kn[k_i,x_i] = prob_mass
                                                 
             # normalize responsibilities
-            resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
+            resp_kn[:,x_i] = prob_masses_kn[:,x_i] / np.sum(prob_masses_kn[:,x_i])
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         
-        # calc counts (Nk)
+        # calc counts_k (Nk)
         for k_i in range(k):
-            counts[k_i] = np.sum(resp_kn[k_i,:])
+            counts_k[k_i] = np.sum(resp_kn[k_i,:])
     
     #--------------------------------------------------------------------------
     def em_estep_v(self, parameters, varz):
         """ Vectorized version - given parameters, calculates varz """
         
         means_kd, sigmas_kdd, pis_k            = parameters
-        resp_kn, prob_masses, counts_k  = varz
+        resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         dists_k = np.empty(k,dtype=object)
                 
@@ -193,31 +207,33 @@ class Mm():
             # calc prob masses & resp_kn
             for k_i in range(k):
                 prob_mass = pis_k[k_i] * dists[k_i].pdf(point)
-                prob_masses[k_i,x_i] = prob_mass
+                prob_masses_kn[k_i,x_i] = prob_mass
                                                 
             # normalize responsibilities
-            resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
+            resp_kn[:,x_i] = prob_masses_kn[:,x_i] / np.sum(prob_masses_kn[:,x_i])
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         '''
             
         # it is doubtful that vectorizing this will help
         for k_i in range(k):
             # calc prob masses & resp_kn
-            prob_masses[k_i,:] = pis_k[k_i] * dists_k[k_i].pdf(self.X_nd)
+            prob_masses_kn[k_i,:] = pis_k[k_i] * \
+                                    dists_k[k_i].pdf(self.X_nd) * \
+                                    self.X_weights_n
                                                 
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
             # normalize responsibilities
-            resp_kn[:,x_i] = prob_masses[:,x_i] / np.sum(prob_masses[:,x_i])
+            resp_kn[:,x_i] = prob_masses_kn[:,x_i] / np.sum(prob_masses_kn[:,x_i])
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         '''
         # normalize responsibilities
-        resp_kn[:,:] = np.divide(prob_masses, 
-                                 np.sum(prob_masses, axis=0)[np.newaxis,:])
+        resp_kn[:,:] = np.divide(prob_masses_kn, 
+                                 np.sum(prob_masses_kn, axis=0)[np.newaxis,:])
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
          
-        # calc counts (Nk)
+        # calc counts_k (Nk)
         #for k_i in range(k):
         #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
         counts_k[:] = np.sum(resp_kn, axis=1)
@@ -227,7 +243,7 @@ class Mm():
         """ Non-vectorized - given varz, calculates parameters """
     
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, counts  = varz
+        resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         
         # calc means
@@ -239,12 +255,12 @@ class Mm():
                 
         #   average is sum/count
         for k_i in range(k):
-            means_kd[k_i] /= counts[k_i]
+            means_kd[k_i] /= counts_k[k_i]
 
         # calc pis
-        total_counts = np.sum(counts)
+        total_counts = np.sum(counts_k)
         for k_i in range(k):
-            pis_k[k_i] = counts[k_i]/total_counts
+            pis_k[k_i] = counts_k[k_i]/total_counts
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
         # calc sigmas
@@ -257,7 +273,7 @@ class Mm():
                 sigmas_kdd[k_i] += resp_kn[k_i,x_i] * np.outer(d,d)
                 
         for k_i in range(k):
-            sigmas_kdd[k_i] /= counts[k_i]                
+            sigmas_kdd[k_i] /= counts_k[k_i]                
             sigmas_kdd[k_i] += self.MIN_VAR * np.eye(self.d) # prevent singularity
 
     #--------------------------------------------------------------------------
@@ -265,7 +281,7 @@ class Mm():
         """ Vectorized - given varz, calculate parameters """
     
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, counts  = varz
+        resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         
         # calc means
@@ -279,13 +295,13 @@ class Mm():
         #   average is sum/count
         #for k_i in range(k):
         #    means_kd[k_i] /= counts[k_i]
-        means_kd /= counts[:,np.newaxis]
+        means_kd /= counts_k[:,np.newaxis]
 
         # calc pis
-        #total_counts = np.sum(counts)
+        #total_counts = np.sum(counts_k)
         #for k_i in range(k):
-        #    pis_k[k_i] = counts[k_i]/total_counts
-        pis_k[:] = counts/np.sum(counts)
+        #    pis_k[k_i] = counts_k[k_i]/total_counts
+        pis_k[:] = counts_k/np.sum(counts_k)
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
 
@@ -308,7 +324,7 @@ class Mm():
             sigmas_kdd[k_i] = np.sum(np.einsum('nd,nD->ndD', diff_nd, diff_nd),axis=0)
                
         for k_i in range(k):
-            sigmas_kdd[k_i] /= counts[k_i]                
+            sigmas_kdd[k_i] /= counts_k[k_i]                
             sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
 
     #--------------------------------------------------------------------------
@@ -330,7 +346,7 @@ class Mm():
         parameters, varz = self.em_init(k)
 
         means_kd, sigmas_kdd, pis_k          = parameters
-        resp_kn, prob_masses, counts  = varz
+        resp_kn, prob_masses_kn, counts_k  = varz
         
         if __debug__:
             self.plot_means(means_kd)
@@ -346,8 +362,8 @@ class Mm():
                 
             #------------------------
             # M-STEP
-            #   given counts (resp_kn), update parameters (pis, means, sigmas)
-            #   normalize prob_masses
+            #   given counts_k (resp_kn), update parameters (pis, means, sigmas)
+            #   normalize prob_masses_kn
             #   at this point, we want to find the relative probability of 
             #   of each k_means overall
 
@@ -377,7 +393,7 @@ class Mm():
         parameters, varz = self.em_init(k)
 
         means_kd, sigmas_kdd, pis_k   = parameters
-        resp_kn, prob_masses, counts  = varz
+        resp_kn, prob_masses_kn, counts_k  = varz
         
         if __debug__:
             self.plot_means(means_kd)
@@ -393,8 +409,8 @@ class Mm():
                 
             #------------------------
             # M-STEP
-            #   given counts (resp_kn), update parameters (pis, means, sigmas)
-            #   normalize prob_masses
+            #   given counts_k (resp_kn), update parameters (pis, means, sigmas)
+            #   normalize prob_masses_kn
             #   at this point, we want to find the relative probability of 
             #   of each k_means overall
 
@@ -524,12 +540,30 @@ class TestMm(unittest.TestCase):
                          abs(means[1,1] - 2.05) < 0.01) or \
                        (abs(means[1,0] - 1.05) < 0.01 and \
                         abs(means[1,1] - 1.05) < 0.01) )
+        
+    #@unittest.skip
+    def test_k_means(self):
+        print("\n...test_k_means(...)")
+        with open("points.dat") as f:
+            data_mat = []
+            for line in f:
+                sline = line.split()
+                assert(len(sline) == 2)
+                data_mat.append(sline)
+        mm = Mm(data_mat,np.random.rand(len(data_mat)))
+        k = 4
+        n_iter = 30
+        means = mm.k_means(k, n_iter)
+        print(means)
+        mm.plot_means(means)
+        plt.title('test_k_means')
+
 
     #@unittest.skip
     def test_em_for_simple(self):
         print("\n...test_em_for_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 0.9; 2.1,2.0')
-        mm = Mm(data_mat)
+        mm = Mm(data_mat,np.random.rand(len(data_mat)))
         #print(mm)
         
         means, sigmas = mm.em_for(2, 20)
@@ -545,23 +579,6 @@ class TestMm(unittest.TestCase):
                          abs(means[1,1] - 2.00) < 0.01) or \
                        (abs(means[1,0] - 1.05) < 0.01 and \
                         abs(means[1,1] - 0.95) < 0.01) )
-        
-    #@unittest.skip
-    def test_k_means(self):
-        print("\n...test_k_means(...)")
-        with open("points.dat") as f:
-            data_mat = []
-            for line in f:
-                sline = line.split()
-                assert(len(sline) == 2)
-                data_mat.append(sline)
-        mm = Mm(data_mat)
-        k = 4
-        n_iter = 30
-        means = mm.k_means(k, n_iter)
-        print(means)
-        mm.plot_means(means)
-        plt.title('test_k_means')
 
     #@unittest.skip
     def test_em_for(self):
@@ -582,6 +599,7 @@ class TestMm(unittest.TestCase):
         plt.title('test_em_for')
         #pause = input('Press enter when complete: ')
 
+    #@unittest.skip    
     def test_em_v(self):
         print("\n...test_em_v(...)")
         with open("points.dat") as f:
@@ -800,6 +818,8 @@ if __name__ == '__main__':
             process_decep_data(data_file) 
         elif (sys.argv[1] == 'voice'):
             voice()
+        else:
+            unittest.main()
     else:
         unittest.main()
         
