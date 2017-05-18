@@ -47,7 +47,7 @@ class Mm():
               Data is standardized using sklearn.preprocessing.
             
         """
-        self.MIN_VAR = 0.001 # min variance for GMM (for numer. stability)
+        self.MIN_VAR = 0.0001 # min variance for GMM (for numer. stability)
         self.X_nd = np.array(point_list, copy=True, dtype=float) # X[i,point]
         self.n,self.d = self.X_nd.shape 
         if point_weights == []:
