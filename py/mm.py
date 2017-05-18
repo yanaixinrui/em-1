@@ -186,9 +186,7 @@ class Mm():
             resp_kn[:,x_i] = prob_masses_kn[:,x_i] / np.sum(prob_masses_kn[:,x_i])
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         
-        # calc counts_k (Nk)
-        for k_i in range(k):
-            counts_k[k_i] = np.sum(resp_kn[k_i,:])
+
     
     #--------------------------------------------------------------------------
     def em_estep_v(self, parameters, varz):
@@ -234,10 +232,7 @@ class Mm():
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
          
-        # calc counts_k (Nk)
-        #for k_i in range(k):
-        #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
-        counts_k[:] = np.sum(resp_kn, axis=1)
+
 
     #--------------------------------------------------------------------------
     def em_mstep(self, parameters, varz):
@@ -246,6 +241,10 @@ class Mm():
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
+        
+        # calc counts_k (Nk)
+        for k_i in range(k):
+            counts_k[k_i] = np.sum(resp_kn[k_i,:])
         
         # calc means
         means_kd.fill(0.)
@@ -258,10 +257,9 @@ class Mm():
         for k_i in range(k):
             means_kd[k_i] /= counts_k[k_i]
 
-        # calc pis
-        total_counts = np.sum(counts_k)
+        # calc pis           
         for k_i in range(k):
-            pis_k[k_i] = counts_k[k_i]/total_counts
+            pis_k[k_i] = counts_k[k_i]/self.n
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
         # calc sigmas
@@ -285,6 +283,11 @@ class Mm():
         resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         
+        # calc counts_k (Nk)
+        #for k_i in range(k):
+        #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
+        counts_k[:] = np.sum(resp_kn, axis=1)        
+    
         # calc means
         means_kd.fill(0.)
         #   calculate weighted sums of data points
@@ -299,10 +302,9 @@ class Mm():
         means_kd /= counts_k[:,np.newaxis]
 
         # calc pis
-        #total_counts = np.sum(counts_k)
         #for k_i in range(k):
-        #    pis_k[k_i] = counts_k[k_i]/total_counts
-        pis_k[:] = counts_k/np.sum(counts_k)
+        #    pis_k[k_i] = counts_k[k_i]/self.n
+        pis_k[:] = counts_k/self.n
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
 
