@@ -16,8 +16,10 @@ import re
 import csv
 
 import sys        # for sys.argv
-
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 from scipy.stats import multivariate_normal
 import random
 
@@ -65,7 +67,8 @@ class Mm():
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins        
 
-        plt.figure(figsize=(6,6))
+        if plt:
+            plt.figure(figsize=(6,6))
     
     #--------------------------------------------------------------------------   
     def __str__(self):
@@ -661,7 +664,7 @@ class ProfileMm(unittest.TestCase):
             data_mat = []
             for line in f:
                 sline = re.findall(r'[^,;\s]+', line)
-                assert(len(sline) == 2)  # eventually remove
+                #assert(len(sline) == 2)  # eventually remove
                 data_mat.append(sline)
         mm = Mm(data_mat)
         k = 4 # TODO range
