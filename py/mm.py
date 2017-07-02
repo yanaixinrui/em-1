@@ -9,6 +9,11 @@ both 'for loop' as well as vectorized Numpy for profiling comparison.
 To run individual unittests:
     $ python3 mm.py TestMm.test_k_means_simple
 
+To profile:    
+    $ python3 -O mm.py profile
+
+    
+
 -------------------------------------------------------------------------------
 """
 import numpy as np
@@ -648,7 +653,7 @@ class TestMm(unittest.TestCase):
         
 #============================================================================
 class ProfileMm(unittest.TestCase):
-    """ SProfile the alternative methods of Mm """
+    """ Profile the alternative methods of Mm """
 
     def compare_all(self):
         self.do_loop('test.dat',range(4,5),30)
@@ -810,6 +815,7 @@ if __name__ == '__main__':
             profiler = ProfileMm()
             profiler.generate_data_file('test.dat', 4, 3, 50000) # k d n
         elif (sys.argv[1] == 'profile'):
+            print('Profiling starting...')
             profiler = ProfileMm()
             profiler.compare_all()
         elif (sys.argv[1] == 'deception'):
