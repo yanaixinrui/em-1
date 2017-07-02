@@ -25,6 +25,7 @@ import sys        # for sys.argv
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
 import random
+import pandas as pd
 
 try:
     from scipy.misc  import logsumexp
@@ -70,7 +71,8 @@ class Mm():
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins        
 
-        plt.figure(figsize=(6,6))
+        if __debug__:
+                plt.figure(figsize=(6,6))
     
     #--------------------------------------------------------------------------   
     def __str__(self):
@@ -511,6 +513,33 @@ class Mm():
         # TODO        
         pass
 
+    #--------------------------------------------------------------------------
+    def cluster(self, infile='example/interrogator.csv', 
+                outfile='example/clusters.csv', 
+                features=[' AU06_r',' AU12_r'], 
+                k=5):
+        """ Loads data from infile, runs GMM, writes clusters to outfile.
+        
+        """
+        print("\n...clustering(...)")
+        df = pd.read_csv(infile) 
+        
+        if __debug__:
+            plt.close()
+        self.__init__(df.loc[:,features])
+        n_iter = 200
+        means, sigmas = mm.em_v(k, n_iter)
+        print(means)
+        if __debug__:
+            mm.plot_means(means,sigmas)
+            plt.title('GMM results')
+        cluster_data = np.concatenate((means,sigmas[:,np.newaxis]),axis=1)
+        df_clusters = pd.DataFrame(data=cluster_data,columns=features+['sigmas'])
+        df_clusters.to_csv(outfile,index=False)
+        if __debug__:
+            plt.savefig(cluster_outfile + '.png')
+
+    
 #============================================================================
 class TestMm(unittest.TestCase):
     """ Self testing of each method """
@@ -872,6 +901,7 @@ def voice2():
     
 #============================================================================
 if __name__ == '__main__':
+
     if (len(sys.argv) > 1):
         if (sys.argv[1] == 'generate_test_data'):
             profiler = ProfileMm()
@@ -888,6 +918,9 @@ if __name__ == '__main__':
             voice()
         elif (sys.argv[1] == 'voice2'):
             voice2()
+        elif (sys.argv[1] == 'cluster'):
+            mm = Mm()
+            mm.cluster()
         else:
             unittest.main()
     else:
