@@ -52,7 +52,7 @@ class Mm():
               Data is standardized using sklearn.preprocessing.
             
         """
-        self.MIN_VAR = 0.000001 # min variance for GMM (for numer. stability)
+        self.MIN_VAR = 0.0001 # min variance for GMM (for numer. stability)
         self.X_nd = np.array(point_list, copy=True, dtype=float) # X[i,point]
         self.n,self.d = self.X_nd.shape 
         if point_weights == []:
@@ -153,7 +153,8 @@ class Mm():
         sigmas_k = np.empty(k,dtype=object)
         for k_i in range(k):
             #sigmas_k[k_i] = 0.1 * np.eye(self.d, dtype=float)
-            sigmas_k[k_i] = self.var_orig * np.eye(self.d, dtype=float)
+            sigmas_k[k_i] = self.var_orig * np.eye(self.d, dtype=float) + \
+                            0.1 * np.eye(self.d, dtype=float)
 
         # pis    :[k]
         # (the mixing portion of each mean)
@@ -190,9 +191,7 @@ class Mm():
             resp_kn[:,x_i] = prob_masses_kn[:,x_i] / np.sum(prob_masses_kn[:,x_i])
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         
-        # calc counts_k (Nk)
-        for k_i in range(k):
-            counts_k[k_i] = np.sum(resp_kn[k_i,:])
+
     
     #--------------------------------------------------------------------------
     def em_estep_v(self, parameters, varz):
@@ -238,10 +237,7 @@ class Mm():
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
          
-        # calc counts_k (Nk)
-        #for k_i in range(k):
-        #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
-        counts_k[:] = np.sum(resp_kn, axis=1)
+
 
     #--------------------------------------------------------------------------
     def em_mstep(self, parameters, varz):
@@ -250,6 +246,10 @@ class Mm():
         means_kd, sigmas_kdd, pis_k          = parameters
         resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
+        
+        # calc counts_k (Nk)
+        for k_i in range(k):
+            counts_k[k_i] = np.sum(resp_kn[k_i,:])
         
         # calc means
         means_kd.fill(0.)
@@ -262,10 +262,9 @@ class Mm():
         for k_i in range(k):
             means_kd[k_i] /= counts_k[k_i]
 
-        # calc pis
-        total_counts = np.sum(counts_k)
+        # calc pis           
         for k_i in range(k):
-            pis_k[k_i] = counts_k[k_i]/total_counts
+            pis_k[k_i] = counts_k[k_i]/self.n
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
         # calc sigmas
@@ -289,6 +288,11 @@ class Mm():
         resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         
+        # calc counts_k (Nk)
+        #for k_i in range(k):
+        #    counts_k[k_i] = np.sum(resp_kn[k_i,:])
+        counts_k[:] = np.sum(resp_kn, axis=1)        
+    
         # calc means
         means_kd.fill(0.)
         #   calculate weighted sums of data points
@@ -303,10 +307,9 @@ class Mm():
         means_kd /= counts_k[:,np.newaxis]
 
         # calc pis
-        #total_counts = np.sum(counts_k)
         #for k_i in range(k):
-        #    pis_k[k_i] = counts_k[k_i]/total_counts
-        pis_k[:] = counts_k/np.sum(counts_k)
+        #    pis_k[k_i] = counts_k[k_i]/self.n
+        pis_k[:] = counts_k/self.n
         assert(abs(np.sum(pis_k) -1) < 0.001)
         
 
@@ -330,7 +333,7 @@ class Mm():
                
         for k_i in range(k):
             sigmas_kdd[k_i] /= counts_k[k_i]                
-            sigmas_kdd[k_i] += 0.000001 * np.eye(self.d) # prevent singularity
+            sigmas_kdd[k_i] += self.MIN_VAR * np.eye(self.d) # prevent singularity
 
     #--------------------------------------------------------------------------
     def em_for(self, k, n_iter=2):
@@ -809,6 +812,65 @@ def voice():
     pause = input('Press enter when complete: ')
 
 #============================================================================
+def voice2():
+    from itertools import combinations
+    USE_POLY = False
+    
+    f = open("vdata_with_sent4.csv", 'rt')
+    data = []
+    try:
+        reader = csv.reader(f)
+        header = next(reader)
+        for row in reader:
+            data.append(np.array(row))
+    finally:
+        f.close()
+        
+    header = np.array(header)
+    data = np.array(data) # data[patient, datafield] # all data is strings, even numbers
+    print(data.shape)
+    visit_rating_questions =  np.array([387,388,389,391,392,610]) # problem with 390 - empty fields
+    
+    # reverse polarity of question 392 data
+    for i in range(data.shape[0]):
+        new_val = 6 - int(data[i,392])
+        data[i,392] = str(new_val)
+    
+    #key_stats = np.array([575, 577, 573,564,576, 566,578,588,589,590,591,592, \
+    #                      600,601,602,603,604,605,606,607])
+    key_stats = np.array([575, 577, 573,588,589,590,591,592, \
+                          600,601,602,603,604,605,606,607])
+    key_stats_data = np.array(data[:,key_stats],float)
+    
+    print(header[key_stats])
+    
+    features = key_stats_data
+    results = []
+    good_results = []
+    #for num_features in range(1,5):
+    for num_features in range(2,3):
+        feature_combo_list = list(combinations(range(14),num_features))
+    
+        for q in [visit_rating_questions[-1]]:
+            Ratings = np.array(data[:,q],int)
+            min_val = min(Ratings)            
+            y_n = (Ratings == min_val)
+            colors = ['g' if y==1 else 'r' for y in y_n]
+            for features in feature_combo_list:
+                X_nd = key_stats_data[:,features]
+                if(USE_POLY):
+                    X_nd = poly.fit_transform(X_nd)
+                X_nd = key_stats_data[:,features]
+                gmm = Mm(X_nd)
+                k = 2
+                n_iter = 50
+                print('FEATURES:',str(header[key_stats[list(features)]]))
+                means, sigmas = gmm.em_v(k, n_iter)
+                print(means)
+                gmm.plot_means(means,sigmas)    
+    
+    
+#============================================================================
 if __name__ == '__main__':
     if (len(sys.argv) > 1):
         if (sys.argv[1] == 'generate_test_data'):
@@ -824,6 +886,8 @@ if __name__ == '__main__':
             process_decep_data(data_file) 
         elif (sys.argv[1] == 'voice'):
             voice()
+        elif (sys.argv[1] == 'voice2'):
+            voice2()
         else:
             unittest.main()
     else:
