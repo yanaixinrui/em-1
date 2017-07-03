@@ -9,6 +9,11 @@ both 'for loop' as well as vectorized Numpy for profiling comparison.
 To run individual unittests:
     $ python3 mm.py TestMm.test_k_means_simple
 
+To profile:    
+    $ python3 -O mm.py profile
+
+    
+
 -------------------------------------------------------------------------------
 """
 import numpy as np
@@ -22,6 +27,7 @@ except ImportError:
     plt = None
 from scipy.stats import multivariate_normal
 import random
+import pandas as pd
 
 try:
     from scipy.misc  import logsumexp
@@ -67,8 +73,8 @@ class Mm():
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins        
 
-        if plt:
-            plt.figure(figsize=(6,6))
+        if __debug__ and plt:
+                plt.figure(figsize=(6,6))
     
     #--------------------------------------------------------------------------   
     def __str__(self):
@@ -509,6 +515,33 @@ class Mm():
         # TODO        
         pass
 
+    #--------------------------------------------------------------------------
+    def cluster(self, infile='example/interrogator.csv', 
+                outfile='example/clusters.csv', 
+                features=[' AU06_r',' AU12_r'], 
+                k=5):
+        """ Loads data from infile, runs GMM, writes clusters to outfile.
+        
+        """
+        print("\n...clustering(...)")
+        df = pd.read_csv(infile) 
+        
+        if __debug__:
+            plt.close()
+        self.__init__(df.loc[:,features])
+        n_iter = 200
+        means, sigmas = mm.em_v(k, n_iter)
+        print(means)
+        if __debug__:
+            mm.plot_means(means,sigmas)
+            plt.title('GMM results')
+        cluster_data = np.concatenate((means,sigmas[:,np.newaxis]),axis=1)
+        df_clusters = pd.DataFrame(data=cluster_data,columns=features+['sigmas'])
+        df_clusters.to_csv(outfile,index=False)
+        if __debug__:
+            plt.savefig(cluster_outfile + '.png')
+
+    
 #============================================================================
 class TestMm(unittest.TestCase):
     """ Self testing of each method """
@@ -654,7 +687,7 @@ class TestMm(unittest.TestCase):
         
 #============================================================================
 class ProfileMm(unittest.TestCase):
-    """ SProfile the alternative methods of Mm """
+    """ Profile the alternative methods of Mm """
 
     def compare_all(self):
         self.do_loop('test.dat',range(4,5),30)
@@ -870,11 +903,13 @@ def voice2():
     
 #============================================================================
 if __name__ == '__main__':
+
     if (len(sys.argv) > 1):
         if (sys.argv[1] == 'generate_test_data'):
             profiler = ProfileMm()
             profiler.generate_data_file('test.dat', 4, 3, 50000) # k d n
         elif (sys.argv[1] == 'profile'):
+            print('Profiling starting...')
             profiler = ProfileMm()
             profiler.compare_all()
         elif (sys.argv[1] == 'deception'):
@@ -885,6 +920,9 @@ if __name__ == '__main__':
             voice()
         elif (sys.argv[1] == 'voice2'):
             voice2()
+        elif (sys.argv[1] == 'cluster'):
+            mm = Mm()
+            mm.cluster()
         else:
             unittest.main()
     else:
