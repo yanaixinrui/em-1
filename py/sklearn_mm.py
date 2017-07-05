@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import itertools
 
@@ -5,30 +6,62 @@ from scipy import linalg
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
-
+from scipy.stats import multivariate_normal
 from sklearn import mixture
 
 print(__doc__)
 
-plt.figure(figsize=(5,5))
-# Number of samples per component
-n_samples = 500
+"""
 
-# Generate random sample, two components
-#np.random.seed(0)
-np.random.seed(2)
-C = np.array([[0., -0.1], [1.7, .4]])
-X = np.r_[np.dot(np.random.randn(n_samples, 2), C),
-          .7 * np.random.randn(n_samples, 2) + np.array([-6, 3])]
+
+"""
+
+def plot_gmm(clf, X, features, outfile, bic, to_screen=False):
+    """ saves a plot of the clusters with data """
+    
+    color_iter = itertools.cycle(['navy', 'turquoise', 'cornflowerblue',
+                                  'darkorange'])    
+    plt.figure(figsize=(8,8))   
+    
+    Y_ = clf.predict(X)
+    for i, (mean, cov, color) in enumerate(zip(clf.means_, clf.covariances_,
+                                               color_iter)):
+        
+        plt.scatter(X[Y_ == i, 0], X[Y_ == i, 1], .8, color=color,alpha=.5)
+    
+        x_vals = np.linspace(X[:,0].min(), X[:,0].max(), 50)
+        y_vals = np.linspace(X[:,1].min(), X[:,1].max(), 50)
+        x, y = np.meshgrid(x_vals, y_vals)    
+        pos = np.empty(x.shape + (2,))
+        pos[:, :, 0] = x; pos[:, :, 1] = y
+        rv = multivariate_normal(mean, cov)
+    
+        try:
+            plt.contour(x, y, rv.pdf(pos))
+        except ValueError:
+            pass    
+
+    k = clf.means_.shape[0]
+    plt.title('all_frames I&W, k = ' + str(k) + '  , BIC = ' + str(bic))
+    plt.xlabel(features[0])
+    plt.ylabel(features[1])
+    plt.savefig('bestClusters_' + str(k) + '.png')
+    plt.close()
+    
+#----------------------------------     
+
+plt.figure(figsize=(5,5))
 
 features=[' AU06_r',' AU12_r']
-df = pd.read_csv('example/interrogator.csv') 
+outfile = 'clusters.csv'
+#df = pd.read_csv('example/interrogator.csv') 
+df = pd.read_csv('example/all_frames.csv') 
 X = df.loc[:,features].dropna().values
 
 
 lowest_bic = np.infty
 bic = []
-n_components_range = range(1, 7)
+n_components_range = range(1, 12)
 #n_components_range = range(5, 6)
 cv_types = ['spherical', 'tied', 'diag', 'full']
 cv_types = ['full']
@@ -38,12 +71,16 @@ for cv_type in cv_types:
         gmm = mixture.GaussianMixture(n_components=n_components,
                                       covariance_type=cv_type,
                                       tol=1e-8,
+                                      #tol=1e-6,
                                       max_iter=1000,
+                                      #max_iter=100,
                                       n_init=3,
                                       reg_covar=2e-3)
         gmm.fit(X)
-        print('n-iter:',gmm.n_iter_)
+        print('n_components:', n_components, ', n-iter:', gmm.n_iter_)
         bic.append(gmm.bic(X))
+        plot_gmm(gmm, X, features, 'clusterContour', bic[-1], False)
+        
         if bic[-1] < lowest_bic:
             lowest_bic = bic[-1]
             best_gmm = gmm
@@ -71,6 +108,7 @@ plt.text(xpos, bic.min() * 0.97 + .03 * bic.max(), '*', fontsize=14)
 #spl.legend([b[0] for b in bars], cv_types)
 plt.xlabel('Number of components')
 plt.legend([b[0] for b in bars], cv_types)
+plt.savefig('BIC scores')
 
 # Plot the winner
 plt.figure(figsize=(8,8))
@@ -85,6 +123,7 @@ for i, (mean, cov, color) in enumerate(zip(clf.means_, clf.covariances_,
         continue
     plt.scatter(X[Y_ == i, 0], X[Y_ == i, 1], .8, color=color,alpha=.5)
 
+    '''
     # Plot an ellipse to show the Gaussian component
     angle = np.arctan2(w[0][1], w[0][0])
     angle = 180. * angle / np.pi  # convert to degrees
@@ -93,10 +132,31 @@ for i, (mean, cov, color) in enumerate(zip(clf.means_, clf.covariances_,
     ell.set_clip_box(splot.bbox)
     ell.set_alpha(.75)
     splot.add_artist(ell)
+    '''
+    x_vals = np.linspace(X[:,0].min(), X[:,0].max(), 50)
+    y_vals = np.linspace(X[:,1].min(), X[:,1].max(), 50)
+    x, y = np.meshgrid(x_vals, y_vals)    
+    pos = np.empty(x.shape + (2,))
+    pos[:, :, 0] = x; pos[:, :, 1] = y
+    rv = multivariate_normal(mean, cov)
+
+    try: # not sure why, was running into ValueErrors
+        plt.contour(x, y, rv.pdf(pos))
+    except ValueError:
+        pass
     
 print(clf.means_)
-plt.xticks(())
-plt.yticks(())
-plt.title('Selected GMM: full model, 2 components')
-plt.subplots_adjust(hspace=.35, bottom=.02)
-plt.show()
+sigmas = np.empty(clf.covariances_.shape[0],dtype=object)
+for i in range(sigmas.shape[0]):
+    sigmas[i] = clf.covariances_[i]
+cluster_data = np.concatenate((clf.means_,sigmas[:,np.newaxis]),axis=1)
+df_clusters = pd.DataFrame(data=cluster_data,columns=features+['sigmas'])
+df_clusters.to_csv(outfile,index=False)
+#plt.xticks(())
+#plt.yticks(())
+plt.title('best GMM')
+plt.xlabel(features[0])
+plt.ylabel(features[1])
+#plt.subplots_adjust(hspace=.35, bottom=.02)
+plt.savefig('clusterContours.png')
+#plt.show()
