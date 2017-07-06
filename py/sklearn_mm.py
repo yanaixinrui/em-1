@@ -195,7 +195,7 @@ def calculate_gmm():
     gmm_list = []
     lowest_bic = np.infty
     bic = []
-    n_components_range = range(1, 3) #initially 1-12
+    n_components_range = range(1, 12) #initially 1-12
     #n_components_range = range(5, 6)
     cv_types = ['spherical', 'tied', 'diag', 'full']
     cv_types = ['full']
