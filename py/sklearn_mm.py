@@ -150,40 +150,40 @@ def get_face_dict(inputs, file_time_dict, S1_, S2_, key_features,
 
     return header, face_dict
 #------------------------------------------------------------------------
-def analyze_face_result(header, face_dict, gmm_list):
+def analyze_face_result(header, face_dict, gmm):
     logging.info('analyzing face results')
     
-    for gmm in gmm_list:
-        k = gmm.n_components
-        face_results = defaultdict(list)
-        for fname in face_dict:
-            SA_counts = np.zeros(k)
-            for data in face_dict[fname]:
-                data = np.array(data)
-                data = data[~np.isnan(data).any(axis=1),:]
+    
+    k = gmm.n_components
+    face_results = defaultdict(list)
+    for fname in face_dict:
+        SA_counts = np.zeros(k)
+        for data in face_dict[fname]:
+            data = np.array(data)
+            data = data[~np.isnan(data).any(axis=1),:]
 
-                counts = np.zeros(k)
-                length = data.shape[0]
-                y = gmm.predict(data)
+            counts = np.zeros(k)
+            length = data.shape[0]
+            y = gmm.predict(data)
 
-                for y_i in range(k):
-                    counts[y_i] = (y == y_i).sum()            
-                percents = counts / counts.sum()
-                face_results[fname] += list(percents) 
-                SA_counts += counts
-            
-            percents = SA_counts / SA_counts.sum()
-            face_results[fname] += list(percents)    
-        face_header = []
-        for prefix in ['S1','S2','S3','SA']:
-            for k_i in range(k):
-                face_header += [prefix +'_cluster' + str(k_i)]  
+            for y_i in range(k):
+                counts[y_i] = (y == y_i).sum()            
+            percents = counts / counts.sum()
+            face_results[fname] += list(percents) 
+            SA_counts += counts
         
-        output_file_name = 'face_result_'+str(k)+'.gmm.csv'
-        write_results(output_file_name,face_header, face_results)        
+        percents = SA_counts / SA_counts.sum()
+        face_results[fname] += list(percents)    
+    face_header = []
+    for prefix in ['S1','S2','S3','SA']:
+        for k_i in range(k):
+            face_header += [prefix +'_cluster' + str(k_i)]  
+    
+    output_file_name = 'face_result_'+str(k)+'.gmm.csv'
+    write_results(output_file_name,face_header, face_results)        
                     
 #------------------------------------------------------------------------
-def calculate_gmm():
+def calculate_gmm(header, face_dict):
     plt.figure(figsize=(5,5))
     
     features=[' AU06_r',' AU12_r']
@@ -192,7 +192,7 @@ def calculate_gmm():
     df = pd.read_csv('example/all_frames.csv') 
     X = df.loc[:,features].dropna().values
     
-    gmm_list = []
+    #gmm_list = []
     lowest_bic = np.infty
     bic = []
     n_components_range = range(1, 12) #initially 1-12
@@ -210,8 +210,8 @@ def calculate_gmm():
                                           #max_iter=100,
                                           n_init=3,
                                           reg_covar=2e-3)
-            gmm_list.append(gmm)
             gmm.fit(X)
+            #gmm_list.append(gmm)
             print('n_components:', n_components, ', n-iter:', gmm.n_iter_)
             bic.append(gmm.bic(X))
             plot_gmm(gmm, X, features, 'clusterContour', bic[-1], False)
@@ -219,7 +219,8 @@ def calculate_gmm():
             if bic[-1] < lowest_bic:
                 lowest_bic = bic[-1]
                 best_gmm = gmm
-                
+            
+            analyze_face_result(header, face_dict, gmm)
             print(gmm.means_)
             sigmas = np.empty(gmm.covariances_.shape[0],dtype=object)
             for i in range(sigmas.shape[0]):
@@ -304,8 +305,6 @@ def calculate_gmm():
     #plt.subplots_adjust(hspace=.35, bottom=.02)
     plt.savefig('clusterContours.png')
     #plt.show()
-    
-    return gmm_list
 
 #write code to load in a GMM cluster result csv
 #------------------------------------------------------------------------
@@ -336,10 +335,9 @@ def read_time_list(fname):
 def do_all(args):
     KEY_DATA = list(range(1,4)) + [400,404]
     time_interval_dict = read_time_list(args.l)
-    gmm_list = calculate_gmm()
     header, face_dict = get_face_dict(args.i, time_interval_dict, args.b, args.e, \
                                      KEY_DATA, args.t)
-    analyze_face_result(header, face_dict, gmm_list)
+    gmm_list = calculate_gmm(header, face_dict)
     
 #------------------------------------------------------------------------
 if __name__ == '__main__':
