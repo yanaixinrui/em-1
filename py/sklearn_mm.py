@@ -160,6 +160,10 @@ def analyze_face_result(header, face_dict, gmm):
         SA_counts = np.zeros(k)
         for data in face_dict[fname]:
             data = np.array(data)
+            print(fname)
+            print(data.shape)
+            if (data.shape[0]==0):
+                continue
             data = data[~np.isnan(data).any(axis=1),:]
 
             counts = np.zeros(k)
