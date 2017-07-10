@@ -185,7 +185,43 @@ def analyze_face_result(header, face_dict, gmm):
     
     output_file_name = 'face_result_'+str(k)+'.gmm.csv'
     write_results(output_file_name,face_header, face_results)        
-                    
+#------------------------------------------------------------------------
+def analyze_face_soft_result(header, face_dict, gmm):
+    logging.info('analyzing face results')
+    
+    
+    k = gmm.n_components
+    face_results = defaultdict(list)
+    for fname in face_dict:
+        file_data = []
+        SA_counts = np.zeros(k)
+        for data in face_dict[fname]:
+            data = np.array(data)
+            if (data.shape[0]==0):
+                continue
+            data = data[~np.isnan(data).any(axis=1),:]
+            file_data.append(data)
+
+            counts = np.zeros(k)
+            length = data.shape[0]
+            y = gmm.predict_proba(data)
+          
+            percents = np.nanmean(y, axis =0)
+            face_results[fname] += list(percents) 
+        
+        file_data = np.vstack(file_data)
+        file_predict = gmm.predict_proba(file_data)
+        percents = np.nanmean(file_predict, axis=0)
+        face_results[fname] += list(percents)    
+        
+    face_header = []
+    for prefix in ['S1','S2','S3','SA']:
+        for k_i in range(k):
+            face_header += [prefix +'_cluster' + str(k_i)]  
+    
+    output_file_name = 'soft_face_result_'+str(k)+'.gmm.csv'
+    write_results(output_file_name,face_header, face_results)        
+
 #------------------------------------------------------------------------
 def calculate_gmm(header, face_dict):
     plt.figure(figsize=(5,5))
@@ -199,7 +235,7 @@ def calculate_gmm(header, face_dict):
     #gmm_list = []
     lowest_bic = np.infty
     bic = []
-    n_components_range = range(1, 12) #initially 1-12
+    n_components_range = range(2, 3) #initially 1-12
     #n_components_range = range(5, 6)
     cv_types = ['spherical', 'tied', 'diag', 'full']
     cv_types = ['full']
@@ -224,7 +260,8 @@ def calculate_gmm(header, face_dict):
                 lowest_bic = bic[-1]
                 best_gmm = gmm
             
-            analyze_face_result(header, face_dict, gmm)
+            #analyze_face_result(header, face_dict, gmm)
+            analyze_face_soft_result(header, face_dict, gmm)
             print(gmm.means_)
             sigmas = np.empty(gmm.covariances_.shape[0],dtype=object)
             for i in range(sigmas.shape[0]):
