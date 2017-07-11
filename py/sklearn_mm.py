@@ -209,6 +209,8 @@ def analyze_face_soft_result(header, face_dict, gmm):
             percents = np.nanmean(y, axis =0)
             face_results[fname] += list(percents) 
         
+        if(file_data.shape == 0):
+            continue
         file_data = np.vstack(file_data)
         file_predict = gmm.predict_proba(file_data)
         percents = np.nanmean(file_predict, axis=0)
