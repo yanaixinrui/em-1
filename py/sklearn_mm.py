@@ -24,7 +24,7 @@ from collections import defaultdict
 
 """
 
-def plot_gmm(clf, X, features, outfile, bic, to_screen=False):
+def plot_gmm(clf, X, features, outfile, bic, to_screen=False): #plot the gmm model given
     """ saves a plot of the clusters with data """
     
     color_iter = itertools.cycle(['navy', 'turquoise', 'cornflowerblue',
@@ -124,7 +124,7 @@ def get_data_segments(fname, key_features, data_type='', S1=None, S2=None):
         return new_header, S1_data, S2_data, S3_data
 #------------------------------------------------------------------------
 def get_face_dict(inputs, file_time_dict, S1_, S2_, key_features,
-                       data_type=''):  
+                       data_type=''):  #return a face dict (key is the filename), each element contains data in s1,s2,s3
 
     face_dict = {} # for every basename, gives % faces per S1, S2...
     files =  glob.glob(inputs)
@@ -150,7 +150,7 @@ def get_face_dict(inputs, file_time_dict, S1_, S2_, key_features,
 
     return header, face_dict
 #------------------------------------------------------------------------
-def analyze_face_result(header, face_dict, gmm):
+def analyze_face_result(header, face_dict, gmm): #return the percentage of each face cluster in each file (of 153)
     logging.info('analyzing face results')
     
     
@@ -186,7 +186,7 @@ def analyze_face_result(header, face_dict, gmm):
     output_file_name = 'face_result_'+str(k)+'.gmm.csv'
     write_results(output_file_name,face_header, face_results)        
 #------------------------------------------------------------------------
-def analyze_face_soft_result(header, face_dict, gmm):
+def analyze_face_soft_result(header, face_dict, gmm):#return the mean "soft" result for each face cluster of each file (of 153)
     logging.info('analyzing face results')
     
     
@@ -225,7 +225,8 @@ def analyze_face_soft_result(header, face_dict, gmm):
     write_results(output_file_name,face_header, face_results)        
 
 #------------------------------------------------------------------------
-def calculate_gmm(header, face_dict):
+def calculate_gmm(header, face_dict): #return a set of GMM models corresponding to a range of number of clusters
+                                      #also return BIC score as an estimator of the best number of clusters
     plt.figure(figsize=(5,5))
     
     features=[' AU06_r',' AU12_r']
@@ -237,7 +238,7 @@ def calculate_gmm(header, face_dict):
     #gmm_list = []
     lowest_bic = np.infty
     bic = []
-    n_components_range = range(2, 3) #initially 1-12
+    n_components_range = range(1, 11) #initially 1-12
     #n_components_range = range(5, 6)
     cv_types = ['spherical', 'tied', 'diag', 'full']
     cv_types = ['full']
@@ -386,11 +387,11 @@ def do_all(args):
 if __name__ == '__main__':
 
     # Setup commandline parser
-    help_intro = 'Program for averaging a directory of files across columns.' 
-    help_intro += ' example usage:\n\t$ ./avg_master.py -i \'example/*_openface.txt\''
-    help_intro += ' -l example/list.csv -o avg.csv -t OPENFACE'
-    help_intro += '\n\t$ ./avg_master.py -i \'OpenFace/*_openface.txt\''
-    help_intro += ' -l example/list.csv -t OPENFACE -o  avg.csv'    
+    help_intro = 'Program for clustering over a set of au features using GMM.' 
+    help_intro += ' example usage:\n\t$ ./sklearn_mm.py -i \'example/*_openface.txt\''
+    help_intro += ' -l example/list.csv -t OPENFACE'
+    help_intro += '\n\t$ ./sklearn_mm.py -i \'OpenFace/*_openface.txt\''
+    help_intro += ' -l example/list.csv -t OPENFACE'    
     parser = argparse.ArgumentParser(description=help_intro)
 
     parser.add_argument('-i', help='inputs, ex:example/*.txt', type=str, 
