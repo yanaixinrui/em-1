@@ -183,6 +183,9 @@ class Mm():
         dists_k = np.empty(k,dtype=object)
         
         for k_i in range(k):
+            # MATT - perhaps you can change the code here, instead of
+            # multivariate normal, use a multivariate beta.
+            # new func multivariate_beta()
             dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -207,6 +210,8 @@ class Mm():
         dists_k = np.empty(k,dtype=object)
                 
         for k_i in range(k):
+            # MNT you could replace the lower line with truncNorm WHEN
+            # our truncNorm supports vector operations
             dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
         
         '''
@@ -416,7 +421,7 @@ class Mm():
             #------------------------
             # E-STEP
             #   given current params(mean & sigma),calc MLE cnts(responsibilites)
-
+            #   this function will use the distribution's pdf function
             self.em_estep_v(parameters,varz)            
                 
             #------------------------
@@ -425,7 +430,7 @@ class Mm():
             #   normalize prob_masses_kn
             #   at this point, we want to find the relative probability of 
             #   of each k_means overall
-
+            #   this function will use the distribution's fit function
             self.em_mstep_v(parameters, varz)
        
             if __debug__:
@@ -556,14 +561,14 @@ class TestMm(unittest.TestCase):
         """ runs once before EACH test """
         pass
 
-    #@unittest.skip
+    @unittest.skip
     def test_init(self):
         print("\n...testing init(...)")
         a = [[1,2,3],[4,5,6]]
         mm = Mm(a)
         print(mm)
     
-    #@unittest.skip
+    @unittest.skip
     def test_k_means_simple(self):
         print("\n...test_k_means_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 1.1; 2.1,2.1')
@@ -580,7 +585,7 @@ class TestMm(unittest.TestCase):
                        (abs(means[1,0] - 1.05) < 0.01 and \
                         abs(means[1,1] - 1.05) < 0.01) )
         
-    #@unittest.skip
+    @unittest.skip
     def test_k_means(self):
         print("\n...test_k_means(...)")
         with open("points.dat") as f:
@@ -598,7 +603,7 @@ class TestMm(unittest.TestCase):
         plt.title('test_k_means')
 
 
-    #@unittest.skip
+    @unittest.skip
     def test_em_for_simple(self):
         print("\n...test_em_for_simple(...)")
         data_mat = np.mat('1 1; 2 2; 1.1 0.9; 2.1,2.0')
@@ -619,7 +624,7 @@ class TestMm(unittest.TestCase):
                        (abs(means[1,0] - 1.05) < 0.01 and \
                         abs(means[1,1] - 0.95) < 0.01) )
 
-    #@unittest.skip
+    @unittest.skip
     def test_em_for(self):
         print("\n...test_em_for(...)")
         with open("points.dat") as f:
@@ -657,7 +662,7 @@ class TestMm(unittest.TestCase):
         plt.title('test_em_v')        
         #pause = input('Press enter when complete: ')
 
-    #@unittest.skip
+    @unittest.skip
     def test_em_for2(self):
         print("\n...test_em_for2(...)")
         with open("points.dat") as f:
