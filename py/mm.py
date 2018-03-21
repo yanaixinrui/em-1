@@ -16,6 +16,7 @@ To profile:
 
 -------------------------------------------------------------------------------
 """
+import truncgauss
 import numpy as np
 import re
 import csv
@@ -208,11 +209,16 @@ class Mm():
         resp_kn, prob_masses_kn, counts_k  = varz
         k = len(pis_k)
         dists_k = np.empty(k,dtype=object)
-                
+        d = means_kd.shape[1]
+        
         for k_i in range(k):
             # MNT you could replace the lower line with truncNorm WHEN
             # our truncNorm supports vector operations
-            dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i])
+            #dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i], )
+            dists_k[k_i] = truncgauss.TruncGauss(means_kd[k_i], sigmas_kdd[k_i],
+                                                 np.zeros(d), np.ones(d)*5)
+
+            
         
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -231,7 +237,7 @@ class Mm():
         for k_i in range(k):
             # calc prob masses & resp_kn
             prob_masses_kn[k_i,:] = pis_k[k_i] * \
-                                    dists_k[k_i].pdf(self.X_nd) * \
+                                    dists_k[k_i].pdf(self.X_nd)[:,0] * \
                                     self.X_weights_n
                                                 
         '''
@@ -418,6 +424,7 @@ class Mm():
         #-----------------------------------------------------
         # ITERATION LOOP
         for i in range(n_iter):
+            print('em_v iter# ', i)
             #------------------------
             # E-STEP
             #   given current params(mean & sigma),calc MLE cnts(responsibilites)
@@ -646,14 +653,12 @@ class TestMm(unittest.TestCase):
     #@unittest.skip    
     def test_em_v(self):
         print("\n...test_em_v(...)")
-        with open("points.dat") as f:
-            data_mat = []
-            for line in f:
-                #sline = line.split(', ')
-                sline = re.findall(r'[^,;\s]+', line)
-                assert(len(sline) == 2)
-                data_mat.append(sline)
-        mm = Mm(data_mat)
+
+        df = pd.read_csv('au6_12.csv', usecols=['AU06_r', 'AU12_r'], 
+                         skipinitialspace=True)
+
+        mm = Mm(df.values)
+
         k = 2
         n_iter = 50
         means, sigmas = mm.em_v(k, n_iter)
@@ -931,5 +936,6 @@ if __name__ == '__main__':
         else:
             unittest.main()
     else:
-        unittest.main()
+        suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
+        suite.debug()        
         
