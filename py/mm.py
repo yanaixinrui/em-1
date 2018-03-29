@@ -482,7 +482,7 @@ class Mm():
             colors = ['g' if x == '1' else 'r' for x in tags]
         else:
             colors = 'k'
-        plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
+        #plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
         
         # plot means
         plt.scatter(means[:,0], means[:,1], s=300,c='r')
@@ -660,14 +660,20 @@ class TestMm(unittest.TestCase):
     def test_em_v(self):
         print("\n...test_em_v(...)")
 
-        df = pd.read_csv('au6_12.csv', usecols=['AU06_r', 'AU12_r'], 
-                         skipinitialspace=True)
+        #df = pd.read_csv('au6_12.csv', usecols=['AU06_r', 'AU12_r'], 
+        #                 skipinitialspace=True)
+        usecols=['AU06_r', 'AU12_r']
+        #df = pd.read_pickle('test.pkl.xz')
+        df = pd.read_pickle('all_frames.pkl.xz')
+        
+        df = df[usecols]
         #df = df[(df['AU06_r'] != 0) & (df['AU12_r'] != 0)] 
-        X_nd = df.values
+        X_nd = df.values[::10,:]
+        print('X_nd.shape:',X_nd.shape)
         X_nd = beta.Beta.rescale_data(X_nd/5)
         mm = Mm(X_nd)
 
-        k = 5
+        k = 8
         n_iter = 300
         means, sigmas = mm.em_v(k, n_iter)
         print(means)
