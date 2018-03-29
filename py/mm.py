@@ -237,8 +237,7 @@ class Mm():
         for k_i in range(k):
             # calc prob masses & resp_kn
             prob_masses_kn[k_i,:] = pis_k[k_i] * \
-                                    dists_k[k_i].pdf(self.X_nd) * \
-                                    self.X_weights_n
+                                    dists_k[k_i].pdf(self.X_nd) 
                                                 
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -251,7 +250,7 @@ class Mm():
                                  np.sum(prob_masses_kn, axis=0)[np.newaxis,:])
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
-         
+        print('LOGLIK: ', np.log(prob_masses_kn).sum())
 
 
     #--------------------------------------------------------------------------
@@ -441,9 +440,9 @@ class Mm():
             self.em_mstep_v(parameters, varz)
        
             if __debug__:
-                self.plot_means(means_kd, sigmas_kdd)
+                self.plot_means(means_kd, sigmas_kdd, pis_k)
 
-        return means_kd, sigmas_kdd
+        return means_kd, sigmas_kdd, pis_k
                 
     #--------------------------------------------------------------------------
     def em_gpu(self, k, n_iter=2):
@@ -464,7 +463,7 @@ class Mm():
         pass
                          
     #--------------------------------------------------------------------------
-    def plot_means(self, means, sigmas=np.array([]), tags=[]):
+    def plot_means(self, means, sigmas=np.array([]), pis=None, tags=[]):
         """ Plots the datapoints along with topographic map of means
             and sigmas.  Works only for 2D data.
             tags is used to specify different classes for the datapoints 
@@ -475,7 +474,7 @@ class Mm():
               tags = ['1','0','1','1','0'] # length n 
         """
         plt.clf()
-        
+        k = means.shape[0]
         # If we got a tags arg, color points green for '1', red for '0'
         # otherwise color the points blank (white)
         if tags:
@@ -489,7 +488,7 @@ class Mm():
 
         # plot sigmas
         if sigmas.size != 0:
-            for k_i in range(len(sigmas)):
+            for k_i in range(k):
                 x_vals = np.linspace(self.mins[0], self.maxes[0], 50)
                 y_vals = np.linspace(self.mins[1], self.maxes[1], 50)
                 x, y = np.meshgrid(x_vals, y_vals)
@@ -508,7 +507,7 @@ class Mm():
                     z = np.zeros((50,50))
                     for i in range(50):
                         z[i] = rv.pdf(pos[i])
-                    plt.contour(x, y, z)
+                    plt.contour(x, y, pis[k_i]*z)
                 except ValueError:
                     pass
     
@@ -534,30 +533,47 @@ class Mm():
         pass
 
     #--------------------------------------------------------------------------
-    def cluster(self, infile='example/interrogator.csv', 
-                outfile='example/clusters.csv', 
-                features=[' AU06_r',' AU12_r'], 
-                k=5):
-        """ Loads data from infile, runs GMM, writes clusters to outfile.
+    def cluster(self, infile='all_frames.pkl.xz', 
+                outfile='bmm_clusters', 
+                features=['AU06_r','AU12_r'], 
+                k=5, n_iter=50):
+        """ Loads data from infile, runs BMM, writes clusters to outfile.
         
         """
         print("\n...clustering(...)")
-        df = pd.read_csv(infile) 
+        if '.csv' in infile:
+            df = pd.read_csv(infile)
+        else:
+            df = pd.read_pickle(infile)
         
         if __debug__:
             plt.close()
-        self.__init__(df.loc[:,features])
-        n_iter = 200
-        means, sigmas = mm.em_v(k, n_iter)
-        print(means)
+        desample_amt = 10
+        X_nd = df[features].values[::desample_amt,:]
+        X_nd = beta.Beta.rescale_data(X_nd/5)
+        self.__init__(X_nd)
+        
+        means, sigmas, pis = mm.em_v(k, n_iter)
+        print('\nmeans:\n', means)
+        print('\nmeans:\n', sigmas)
+        print('\nmeans:\n', pis)
         if __debug__:
-            mm.plot_means(means,sigmas)
+            mm.plot_means(means, sigmas, pis)
             plt.title('GMM results')
-        cluster_data = np.concatenate((means,sigmas[:,np.newaxis]),axis=1)
-        df_clusters = pd.DataFrame(data=cluster_data,columns=features+['sigmas'])
-        df_clusters.to_csv(outfile,index=False)
+        bd = beta.Beta()
+        a, b = np.empty(k,dtype=object), np.empty(k,dtype=object)
+        for k_i in range(k):
+            bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
+            a[k_i] = bd.a_d.copy()
+            b[k_i] = bd.b_d.copy()
+        cluster_data = np.concatenate((means,sigmas[:,np.newaxis], 
+                                       pis[:,np.newaxis],a[:,np.newaxis],
+                                       b[:,np.newaxis]),axis=1)
+        df_clusters = pd.DataFrame(data=cluster_data,
+                                   columns=features+['sigmas','pis','as','bs'])
+        df_clusters.to_csv(outfile + '_' + str(k) + '.csv',index=False)
         if __debug__:
-            plt.savefig(cluster_outfile + '.png')
+            plt.savefig(outfile + '_' + str(k) + '.png')
 
     
 #============================================================================
@@ -656,7 +672,7 @@ class TestMm(unittest.TestCase):
         plt.title('test_em_for')
         #pause = input('Press enter when complete: ')
 
-    #@unittest.skip    
+    @unittest.skip    
     def test_em_v(self):
         print("\n...test_em_v(...)")
 
@@ -673,7 +689,7 @@ class TestMm(unittest.TestCase):
         X_nd = beta.Beta.rescale_data(X_nd/5)
         mm = Mm(X_nd)
 
-        k = 8
+        k = 5
         n_iter = 300
         means, sigmas = mm.em_v(k, n_iter)
         print(means)
@@ -951,6 +967,11 @@ if __name__ == '__main__':
         else:
             unittest.main()
     else:
-        suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
-        suite.debug()        
+        mm = Mm()
+        mm.cluster(infile='all_frames.pkl.xz', 
+                   outfile='bmm_clusters', 
+                   features=['AU06_r','AU12_r'], 
+                   k=5, n_iter=300)        
+        #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
+        #suite.debug()        
         
