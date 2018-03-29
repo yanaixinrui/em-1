@@ -236,8 +236,8 @@ class Mm():
         # it is doubtful that vectorizing this will help
         for k_i in range(k):
             # calc prob masses & resp_kn
-            prob_masses_kn[k_i,:] = pis_k[k_i] * \
-                                    dists_k[k_i].pdf(self.X_nd) 
+            prob_masses_kn[k_i,:] = np.log(pis_k[k_i]) + \
+                                    dists_k[k_i].logpdf(self.X_nd) 
                                                 
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -246,11 +246,15 @@ class Mm():
             assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)    
         '''
         # normalize responsibilities
-        resp_kn[:,:] = np.divide(prob_masses_kn, 
-                                 np.sum(prob_masses_kn, axis=0)[np.newaxis,:])
+        #resp_kn[:,:] = np.divide(prob_masses_kn, 
+        #                         np.sum(prob_masses_kn, axis=0)[np.newaxis,:])
+        resp_kn[:,:] = np.exp(
+            prob_masses_kn - \
+            logsumexp(prob_masses_kn, axis=0)[np.newaxis,:])
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
-        print('LOGLIK: ', np.log(prob_masses_kn).sum())
+        print('\n------------\nLOGLIK: ', 
+              logsumexp(prob_masses_kn,axis=0).sum())
 
 
     #--------------------------------------------------------------------------
@@ -438,6 +442,14 @@ class Mm():
             #   of each k_means overall
             #   this function will use the distribution's fit function
             self.em_mstep_v(parameters, varz)
+            
+            # check if any means are identical, if so, randomize one
+            for i in range(k):
+                for j in range(i+1,k):
+                    # TODO: pick a meaningful tolerance below
+                    if np.allclose(means_kd[i], means_kd[j]):
+                        print('!!means equivalent, randomizing one')
+                        means_kd[j] = np.random.rand(1,self.d) 
        
             if __debug__:
                 self.plot_means(means_kd, sigmas_kdd, pis_k)
