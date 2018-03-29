@@ -662,7 +662,7 @@ class TestMm(unittest.TestCase):
 
         df = pd.read_csv('au6_12.csv', usecols=['AU06_r', 'AU12_r'], 
                          skipinitialspace=True)
-        df = df[(df['AU06_r'] != 0) & (df['AU12_r'] != 0)] 
+        #df = df[(df['AU06_r'] != 0) & (df['AU12_r'] != 0)] 
         X_nd = df.values
         X_nd = beta.Beta.rescale_data(X_nd/5)
         mm = Mm(X_nd)
