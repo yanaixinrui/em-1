@@ -250,8 +250,9 @@ class Mm():
                                  np.sum(prob_masses_kn, axis=0)[np.newaxis,:])
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
-        print('LOGLIK: ', np.log(prob_masses_kn).sum())
-
+        print('\n---------------\nLOGLIK: ', np.log(prob_masses_kn.sum(axis=0)).sum())
+        for k_i in range(k):
+          print(means_kd[k_i])
 
     #--------------------------------------------------------------------------
     def em_mstep(self, parameters, varz):
@@ -971,7 +972,7 @@ if __name__ == '__main__':
         mm.cluster(infile='all_frames.pkl.xz', 
                    outfile='bmm_clusters', 
                    features=['AU06_r','AU12_r'], 
-                   k=5, n_iter=300)        
+                   k=6, n_iter=300)        
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
         
