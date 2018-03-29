@@ -16,7 +16,8 @@ To profile:
 
 -------------------------------------------------------------------------------
 """
-import truncgauss
+#import truncgauss
+import beta
 import numpy as np
 import re
 import csv
@@ -215,10 +216,9 @@ class Mm():
             # MNT you could replace the lower line with truncNorm WHEN
             # our truncNorm supports vector operations
             #dists_k[k_i] = multivariate_normal(means_kd[k_i],sigmas_kdd[k_i], )
-            dists_k[k_i] = truncgauss.TruncGauss(means_kd[k_i], sigmas_kdd[k_i],
-                                                 np.zeros(d), np.ones(d)*5)
-
-            
+            dists_k[k_i] = beta.Beta()
+            sigma_diag = sigmas_kdd[k_i].diagonal()
+            dists_k[k_i].set_ab_from_mean_var(means_kd[k_i],sigma_diag)            
         
         '''
         for x_i,point in enumerate(self.X_nd): # point is a [d] array
@@ -237,7 +237,7 @@ class Mm():
         for k_i in range(k):
             # calc prob masses & resp_kn
             prob_masses_kn[k_i,:] = pis_k[k_i] * \
-                                    dists_k[k_i].pdf(self.X_nd)[:,0] * \
+                                    dists_k[k_i].pdf(self.X_nd) * \
                                     self.X_weights_n
                                                 
         '''
@@ -498,11 +498,17 @@ class Mm():
                 pos = np.empty(x.shape + (2,))
                 pos[:, :, 0] = x; pos[:, :, 1] = y
                 #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
-                rv = multivariate_normal(means[k_i], sigmas[k_i])
+                bd = beta.Beta()
+                bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
+                print(bd)
+                rv = bd
 
                 try:
                     #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
-                    plt.contour(x, y, rv.pdf(pos))
+                    z = np.zeros((50,50))
+                    for i in range(50):
+                        z[i] = rv.pdf(pos[i])
+                    plt.contour(x, y, z)
                 except ValueError:
                     pass
     
@@ -656,13 +662,16 @@ class TestMm(unittest.TestCase):
 
         df = pd.read_csv('au6_12.csv', usecols=['AU06_r', 'AU12_r'], 
                          skipinitialspace=True)
+        df = df[(df['AU06_r'] != 0) & (df['AU12_r'] != 0)] 
+        X_nd = df.values
+        X_nd = beta.Beta.rescale_data(X_nd/5)
+        mm = Mm(X_nd)
 
-        mm = Mm(df.values)
-
-        k = 2
-        n_iter = 50
+        k = 5
+        n_iter = 300
         means, sigmas = mm.em_v(k, n_iter)
         print(means)
+        print(sigmas)
         mm.plot_means(means,sigmas)
         plt.title('test_em_v')        
         #pause = input('Press enter when complete: ')
