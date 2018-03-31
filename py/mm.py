@@ -160,7 +160,7 @@ class Mm():
         for k_i in range(k):
             #sigmas_k[k_i] = 0.1 * np.eye(self.d, dtype=float)
             sigmas_k[k_i] = self.var_orig * np.eye(self.d, dtype=float) + \
-                            0.1 * np.eye(self.d, dtype=float)
+                            0.01 * np.eye(self.d, dtype=float)
 
         # pis    :[k]
         # (the mixing portion of each mean)
@@ -422,7 +422,7 @@ class Mm():
         resp_kn, prob_masses_kn, counts_k  = varz
         
         if __debug__:
-            self.plot_means(means_kd)
+            self.plot_means(means_kd, sigmas_kdd, pis_k)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -498,7 +498,11 @@ class Mm():
         #plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
         
         # plot means
-        plt.scatter(means[:,0], means[:,1], s=300,c='r')
+        if pis is None:
+            s = 300    
+        else:
+            s = 300*pis*k
+        plt.scatter(means[:,0], means[:,1], s=s, c='r')
 
         # plot sigmas
         if sigmas.size != 0:
@@ -562,13 +566,13 @@ class Mm():
         
         if __debug__:
             plt.close()
-        desample_amt = 10
+        desample_amt = 50
         X_nd = df[features].values[::desample_amt,:]
         X_nd = beta.Beta.rescale_data(X_nd/5)
         self.__init__(X_nd)
         
         loglike_list = []
-        M = 3
+        M = 3  # number of times to run em 
         
         for iter_num in range(1, M+1):
             means, sigmas, pis, log_like = mm.em_v(k, n_iter)
@@ -580,22 +584,25 @@ class Mm():
                 mm.plot_means(means, sigmas, pis)
                 plt.title('BMM results')
             bd = beta.Beta()
-            a, b = np.empty(k,dtype=object), np.empty(k,dtype=object)
+            a_k, b_k = np.empty(k, dtype=object), np.empty(k, dtype=object)
             for k_i in range(k):
                 bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
-                a[k_i] = bd.a_d.copy()
-                b[k_i] = bd.b_d.copy()
+                a_k[k_i] = bd.a_d.copy()
+                b_k[k_i] = bd.b_d.copy()
             cluster_data = np.concatenate((means,sigmas[:,np.newaxis], 
-                                           pis[:,np.newaxis],a[:,np.newaxis],
-                                           b[:,np.newaxis]),axis=1)
+                                           pis[:,np.newaxis], a_k[:,np.newaxis],
+                                           b_k[:,np.newaxis]), axis=1)
             df_clusters = pd.DataFrame(data=cluster_data,
-                                       columns=features+['sigmas','pis','as','bs'])
-            df_clusters.to_csv(outfile + '_' + str(k) + '_' + 'iternum' + str(iter_num) + '.csv',index=False)
+                                    columns=features+['sigmas','pis','as','bs'])
+            df_clusters.to_csv(outfile + '_' + str(k) + '_' + 'iternum' + \
+                               str(iter_num) + '.csv',index=False)
             if __debug__:
-                plt.savefig(outfile + '_' + str(k) + '_iternum' + str(iter_num) + '.png')    
+                plt.savefig(outfile + '_' + str(k) + '_iternum' + \
+                            str(iter_num) + '.png')
                 
         df_loglike = pd.DataFrame(data = loglike_list)
-        df_loglike.to_csv('Loglikelihood' + '_' + str(k) + '.csv', index =  False)
+        df_loglike.to_csv('Loglikelihood' + '_' + str(k) + '.csv', 
+                          index =  False)
         
 
     
@@ -991,10 +998,12 @@ if __name__ == '__main__':
             unittest.main()
     else:
         mm = Mm()
-        mm.cluster(infile='all_frames.pkl.xz', 
-                   outfile='bmm_clusters', 
-                   features=['AU06_r','AU12_r'], 
-                   k=3, n_iter=300)        
+        mm.cluster(
+            #infile='all_frames.pkl.xz', 
+            infile='au6_12.csv', 
+            outfile='bmm_clusters', 
+            features=['AU06_r','AU12_r'], 
+            k=5, n_iter=300)        
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
         
