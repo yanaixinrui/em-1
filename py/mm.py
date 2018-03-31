@@ -416,7 +416,6 @@ class Mm():
             
         #-----------------------------------------------------
         # INITIALIZE
-        
         parameters, varz = self.em_init(k)
 
         means_kd, sigmas_kdd, pis_k   = parameters
@@ -454,8 +453,10 @@ class Mm():
        
             if __debug__:
                 self.plot_means(means_kd, sigmas_kdd, pis_k)
+                
+        log_like = logsumexp(prob_masses_kn,axis=0).sum()           
 
-        return means_kd, sigmas_kdd, pis_k
+        return means_kd, sigmas_kdd, pis_k, log_like
                 
     #--------------------------------------------------------------------------
     def em_gpu(self, k, n_iter=2):
@@ -566,27 +567,36 @@ class Mm():
         X_nd = beta.Beta.rescale_data(X_nd/5)
         self.__init__(X_nd)
         
-        means, sigmas, pis = mm.em_v(k, n_iter)
-        print('\nmeans:\n', means)
-        print('\nmeans:\n', sigmas)
-        print('\nmeans:\n', pis)
-        if __debug__:
-            mm.plot_means(means, sigmas, pis)
-            plt.title('GMM results')
-        bd = beta.Beta()
-        a, b = np.empty(k,dtype=object), np.empty(k,dtype=object)
-        for k_i in range(k):
-            bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
-            a[k_i] = bd.a_d.copy()
-            b[k_i] = bd.b_d.copy()
-        cluster_data = np.concatenate((means,sigmas[:,np.newaxis], 
-                                       pis[:,np.newaxis],a[:,np.newaxis],
-                                       b[:,np.newaxis]),axis=1)
-        df_clusters = pd.DataFrame(data=cluster_data,
-                                   columns=features+['sigmas','pis','as','bs'])
-        df_clusters.to_csv(outfile + '_' + str(k) + '.csv',index=False)
-        if __debug__:
-            plt.savefig(outfile + '_' + str(k) + '.png')
+        loglike_list = []
+        M = 3
+        
+        for iter_num in range(1, M+1):
+            means, sigmas, pis, log_like = mm.em_v(k, n_iter)
+            loglike_list.append(log_like)
+            print('\nmeans:\n', means)
+            print('\nmeans:\n', sigmas)
+            print('\nmeans:\n', pis)
+            if __debug__:
+                mm.plot_means(means, sigmas, pis)
+                plt.title('BMM results')
+            bd = beta.Beta()
+            a, b = np.empty(k,dtype=object), np.empty(k,dtype=object)
+            for k_i in range(k):
+                bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
+                a[k_i] = bd.a_d.copy()
+                b[k_i] = bd.b_d.copy()
+            cluster_data = np.concatenate((means,sigmas[:,np.newaxis], 
+                                           pis[:,np.newaxis],a[:,np.newaxis],
+                                           b[:,np.newaxis]),axis=1)
+            df_clusters = pd.DataFrame(data=cluster_data,
+                                       columns=features+['sigmas','pis','as','bs'])
+            df_clusters.to_csv(outfile + '_' + str(k) + '_' + 'iternum' + str(iter_num) + '.csv',index=False)
+            if __debug__:
+                plt.savefig(outfile + '_' + str(k) + '_iternum' + str(iter_num) + '.png')    
+                
+        df_loglike = pd.DataFrame(data = loglike_list)
+        df_loglike.to_csv('Loglikelihood' + '_' + str(k) + '.csv', index =  False)
+        
 
     
 #============================================================================
@@ -984,7 +994,7 @@ if __name__ == '__main__':
         mm.cluster(infile='all_frames.pkl.xz', 
                    outfile='bmm_clusters', 
                    features=['AU06_r','AU12_r'], 
-                   k=6, n_iter=300)        
+                   k=3, n_iter=300)        
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
         
