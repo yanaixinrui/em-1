@@ -421,8 +421,8 @@ class Mm():
         means_kd, sigmas_kdd, pis_k   = parameters
         resp_kn, prob_masses_kn, counts_k  = varz
         
-        if __debug__:
-            self.plot_means(means_kd, sigmas_kdd, pis_k)
+        #if __debug__:
+        #    self.plot_means(means_kd, sigmas_kdd, pis_k)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -452,7 +452,10 @@ class Mm():
                         means_kd[j] = np.random.rand(1,self.d) 
        
             if __debug__:
-                self.plot_means(means_kd, sigmas_kdd, pis_k)
+                log_like = logsumexp(prob_masses_kn,axis=0).sum()
+                title = 'title: ' + str(log_like) + ',  Min_ab:' + \
+                    str(beta.Beta.MIN_AB)                
+                self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
                 
         log_like = logsumexp(prob_masses_kn,axis=0).sum()           
 
@@ -477,7 +480,7 @@ class Mm():
         pass
                          
     #--------------------------------------------------------------------------
-    def plot_means(self, means, sigmas=np.array([]), pis=None, tags=[]):
+    def plot_means(self, means, sigmas=np.array([]), pis=None, tags=[], title=''):
         """ Plots the datapoints along with topographic map of means
             and sigmas.  Works only for 2D data.
             tags is used to specify different classes for the datapoints 
@@ -488,6 +491,7 @@ class Mm():
               tags = ['1','0','1','1','0'] # length n 
         """
         plt.clf()
+        plt.title(title)
         k = means.shape[0]
         # If we got a tags arg, color points green for '1', red for '0'
         # otherwise color the points blank (white)
@@ -566,8 +570,10 @@ class Mm():
         
         if __debug__:
             plt.close()
-        desample_amt = 50
-        X_nd = df[features].values[::desample_amt,:]
+        desample_amt = 1
+        df_small = df[features].loc[::desample_amt,:]
+        X_nd = df_small.values
+        #X_nd = df[features].values[::desample_amt,:]
         X_nd = beta.Beta.rescale_data(X_nd/5)
         self.__init__(X_nd)
         
@@ -581,8 +587,11 @@ class Mm():
             print('\nmeans:\n', sigmas)
             print('\nmeans:\n', pis)
             if __debug__:
+                plt.figure()
+                title = 'title: ' + str(log_like) + ',  Min_ab:' + \
+                    str(beta.Beta.MIN_AB)
                 mm.plot_means(means, sigmas, pis)
-                plt.title('BMM results')
+                plt.title(title)
             bd = beta.Beta()
             a_k, b_k = np.empty(k, dtype=object), np.empty(k, dtype=object)
             for k_i in range(k):
@@ -1000,10 +1009,10 @@ if __name__ == '__main__':
         mm = Mm()
         mm.cluster(
             #infile='all_frames.pkl.xz', 
-            infile='au6_12.csv', 
+            infile='desampled_au6_au12.csv', 
             outfile='bmm_clusters', 
             features=['AU06_r','AU12_r'], 
-            k=5, n_iter=300)        
+            k=5, n_iter=200)        
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
         
