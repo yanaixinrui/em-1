@@ -584,7 +584,7 @@ class Mm():
             df = df[df['confidence'] >= CONFIDENCE_TOL] 
         if __debug__:
             plt.close()
-        desample_amt = 1
+        desample_amt = 100 # TKS/MINH subset test
         df_small = df[features].loc[::desample_amt,:]        
         X_nd = df_small.values
         #X_nd = df[features].values[::desample_amt,:]
@@ -596,6 +596,8 @@ class Mm():
         
         for iter_num in range(1, M+1):
             means, sigmas, pis, log_like = mm.em_v(k, n_iter)
+            # calculate BIC from loglike, k, and d
+            # MINH calculate BIC = # you need to capture n from the part of the code that does desampling
             loglike_list.append(log_like)
             print('\nmeans:\n', means)
             print('\nmeans:\n', sigmas)
@@ -1021,37 +1023,17 @@ if __name__ == '__main__':
             unittest.main()
     else:
         mm = Mm()
-        for k in range(2,16):
-            mm.cluster(
-                #infile='all_frames.pkl.xz', 
-                infile='desampled_au6_au12.csv', 
-                outfile='bmm_clusters_au6', 
-                #features=['AU06_r','AU12_r'], 
-                features=['AU06_r'], 
-                k=k, n_iter=300)        
-        for k in range(2,16):
-            mm.cluster(
-                #infile='all_frames.pkl.xz', 
-                infile='desampled_au6_au12.csv', 
-                outfile='bmm_clusters_au12', 
-                #features=['AU06_r','AU12_r'], 
-                features=['AU12_r'], 
-                k=k, n_iter=300)        
-        for k in range(2,16):
-            mm.cluster(
-                #infile='all_frames.pkl.xz', 
-                infile='desampled_au6_au12.csv', 
-                outfile='bmm_clusters_au6_12', 
-                features=['AU06_r','AU12_r'], 
-                k=k, n_iter=300)        
+        #MINH paste in brute force subset search of features for loop here
         for k in range(2,16):
             mm.cluster(
                 infile='all_frames.pkl.xz', 
                 #infile='desampled_au6_au12.csv', 
                 outfile='bmm_clusters_au6', 
+                #MINH change outfile to include features
                 #features=['AU06_r','AU12_r'], 
                 features=['AU06_r'], 
                 k=k, n_iter=300)        
+
 
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
