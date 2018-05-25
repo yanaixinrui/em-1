@@ -454,9 +454,10 @@ class Mm():
             if __debug__:
                 log_like = logsumexp(prob_masses_kn,axis=0).sum()
                 title = 'title: ' + str(log_like) + ',  Min_ab:' + \
-                    str(beta.Beta.MIN_AB)                
-                self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
+                    str(beta.Beta.MIN_AB)                  
                 
+                self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
+                                
         log_like = logsumexp(prob_masses_kn,axis=0).sum()           
 
         return means_kd, sigmas_kdd, pis_k, log_like
@@ -492,47 +493,57 @@ class Mm():
         """
         plt.clf()
         plt.title(title)
-        k = means.shape[0]
-        # If we got a tags arg, color points green for '1', red for '0'
-        # otherwise color the points blank (white)
-        if tags:
-            colors = ['g' if x == '1' else 'r' for x in tags]
-        else:
-            colors = 'k'
-        #plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
-        
-        # plot means
-        if pis is None:
-            s = 300    
-        else:
-            s = 300*pis*k
-        plt.scatter(means[:,0], means[:,1], s=s, c='r')
-
-        # plot sigmas
-        if sigmas.size != 0:
-            for k_i in range(k):
-                x_vals = np.linspace(self.mins[0], self.maxes[0], 50)
-                y_vals = np.linspace(self.mins[1], self.maxes[1], 50)
-                x, y = np.meshgrid(x_vals, y_vals)
-                #x, y = np.mgrid[self.mins[0]:self.maxes[0]:.01, \
-                #                self.mins[1]:self.maxes[1]:.01]
-                pos = np.empty(x.shape + (2,))
-                pos[:, :, 0] = x; pos[:, :, 1] = y
-                #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
-                bd = beta.Beta()
-                bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
-                print(bd)
-                rv = bd
-
-                try:
-                    #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
-                    z = np.zeros((50,50))
-                    for i in range(50):
-                        z[i] = rv.pdf(pos[i])
-                    plt.contour(x, y, pis[k_i]*z)
-                except ValueError:
-                    pass
+        k, d = means.shape
+        if d == 2:
+            # If we got a tags arg, color points green for '1', red for '0'
+            # otherwise color the points blank (white)
+            if tags:
+                colors = ['g' if x == '1' else 'r' for x in tags]
+            else:
+                colors = 'k'
+            #plt.scatter(self.X_nd[:,0], self.X_nd[:,1], c=colors)
+            
+            # plot means
+            if pis is None:
+                s = 300    
+            else:
+                s = 300*pis*k
+            plt.scatter(means[:,0], means[:,1], s=s, c='r')
     
+            # plot sigmas
+            if sigmas.size != 0:
+                for k_i in range(k):
+                    x_vals = np.linspace(self.mins[0], self.maxes[0], 50)
+                    y_vals = np.linspace(self.mins[1], self.maxes[1], 50)
+                    x, y = np.meshgrid(x_vals, y_vals)
+                    #x, y = np.mgrid[self.mins[0]:self.maxes[0]:.01, \
+                    #                self.mins[1]:self.maxes[1]:.01]
+                    pos = np.empty(x.shape + (2,))
+                    pos[:, :, 0] = x; pos[:, :, 1] = y
+                    #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
+                    bd = beta.Beta()
+                    bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
+                    print(bd)
+                    rv = bd
+    
+                    try:
+                        #plt.contour(x, y, rv.pdf(pos),cmap=cm.coolwarm)
+                        z = np.zeros((50,50))
+                        for i in range(50):
+                            z[i] = rv.pdf(pos[i])
+                        plt.contour(x, y, pis[k_i]*z)
+                    except ValueError:
+                        pass
+        elif d==1:
+            for ki in range(k):
+                bd = beta.Beta()
+                bd.set_ab_from_mean_var(means[ki], sigmas[ki].diagonal())
+                x = np.linspace(beta.Beta.DOMAIN_LIMIT, 1-beta.Beta.DOMAIN_LIMIT,100)
+                y = pis[ki]*bd.pdf(x[:,np.newaxis])
+                plt.plot(x,y)
+            plt.scatter(means[:,0], -np.ones(k), s=5, c='r')
+            
+            plt.grid(True)             
         plt.pause(0.001)
 
     #--------------------------------------------------------------------------
@@ -568,17 +579,20 @@ class Mm():
         else:
             df = pd.read_pickle(infile)
         
+        if 'confidence' in df.columns:
+            CONFIDENCE_TOL = 0.90
+            df = df[df['confidence'] >= CONFIDENCE_TOL] 
         if __debug__:
             plt.close()
         desample_amt = 1
-        df_small = df[features].loc[::desample_amt,:]
+        df_small = df[features].loc[::desample_amt,:]        
         X_nd = df_small.values
         #X_nd = df[features].values[::desample_amt,:]
         X_nd = beta.Beta.rescale_data(X_nd/5)
         self.__init__(X_nd)
         
         loglike_list = []
-        M = 3  # number of times to run em 
+        M = 5  # number of times to run em 
         
         for iter_num in range(1, M+1):
             means, sigmas, pis, log_like = mm.em_v(k, n_iter)
@@ -610,7 +624,7 @@ class Mm():
                             str(iter_num) + '.png')
                 
         df_loglike = pd.DataFrame(data = loglike_list)
-        df_loglike.to_csv('Loglikelihood' + '_' + str(k) + '.csv', 
+        df_loglike.to_csv(outfile + '_loglike' + '_' + str(k) + '.csv', 
                           index =  False)
         
 
@@ -729,7 +743,7 @@ class TestMm(unittest.TestCase):
         mm = Mm(X_nd)
 
         k = 5
-        n_iter = 300
+        n_iter = 100
         means, sigmas = mm.em_v(k, n_iter)
         print(means)
         print(sigmas)
@@ -1007,12 +1021,38 @@ if __name__ == '__main__':
             unittest.main()
     else:
         mm = Mm()
-        mm.cluster(
-            #infile='all_frames.pkl.xz', 
-            infile='desampled_au6_au12.csv', 
-            outfile='bmm_clusters', 
-            features=['AU06_r','AU12_r'], 
-            k=5, n_iter=200)        
+        for k in range(2,16):
+            mm.cluster(
+                #infile='all_frames.pkl.xz', 
+                infile='desampled_au6_au12.csv', 
+                outfile='bmm_clusters_au6', 
+                #features=['AU06_r','AU12_r'], 
+                features=['AU06_r'], 
+                k=k, n_iter=300)        
+        for k in range(2,16):
+            mm.cluster(
+                #infile='all_frames.pkl.xz', 
+                infile='desampled_au6_au12.csv', 
+                outfile='bmm_clusters_au12', 
+                #features=['AU06_r','AU12_r'], 
+                features=['AU12_r'], 
+                k=k, n_iter=300)        
+        for k in range(2,16):
+            mm.cluster(
+                #infile='all_frames.pkl.xz', 
+                infile='desampled_au6_au12.csv', 
+                outfile='bmm_clusters_au6_12', 
+                features=['AU06_r','AU12_r'], 
+                k=k, n_iter=300)        
+        for k in range(2,16):
+            mm.cluster(
+                infile='all_frames.pkl.xz', 
+                #infile='desampled_au6_au12.csv', 
+                outfile='bmm_clusters_au6', 
+                #features=['AU06_r','AU12_r'], 
+                features=['AU06_r'], 
+                k=k, n_iter=300)        
+
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
         
