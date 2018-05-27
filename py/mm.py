@@ -30,6 +30,8 @@ except ImportError:
 from scipy.stats import multivariate_normal
 import random
 import pandas as pd
+import math
+import itertools
 
 try:
     from scipy.misc  import logsumexp
@@ -75,8 +77,8 @@ class Mm():
         self.mins = self.X_nd.min(axis=0)  # ndarray [d]
         self.ranges = self.maxes - self.mins        
 
-        if __debug__ and plt:
-                plt.figure(figsize=(6,6))
+        #if __debug__ and plt:
+        #        plt.figure(figsize=(6,6))
     
     #--------------------------------------------------------------------------   
     def __str__(self):
@@ -254,8 +256,8 @@ class Mm():
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
 
-        print('\n------------\nLOGLIK: ', 
-              logsumexp(prob_masses_kn,axis=0).sum())
+        #print('\n------------\nLOGLIK: ', 
+        #      logsumexp(prob_masses_kn,axis=0).sum())
 
 
     #--------------------------------------------------------------------------
@@ -427,7 +429,7 @@ class Mm():
         #-----------------------------------------------------
         # ITERATION LOOP
         for i in range(n_iter):
-            print('em_v iter# ', i)
+            #print('em_v iter# ', i)
             #------------------------
             # E-STEP
             #   given current params(mean & sigma),calc MLE cnts(responsibilites)
@@ -456,7 +458,7 @@ class Mm():
                 title = 'title: ' + str(log_like) + ',  Min_ab:' + \
                     str(beta.Beta.MIN_AB)                  
                 
-                self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
+                #self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
                                 
         log_like = logsumexp(prob_masses_kn,axis=0).sum()           
 
@@ -523,7 +525,7 @@ class Mm():
                     #rv = multivariate_normal([0.0, 0.0], [[.1, .07], [0.07, .1]])
                     bd = beta.Beta()
                     bd.set_ab_from_mean_var(means[k_i], sigmas[k_i].diagonal())
-                    print(bd)
+                    #print(bd)
                     rv = bd
     
                     try:
@@ -585,29 +587,34 @@ class Mm():
         if __debug__:
             plt.close()
         desample_amt = 100 # TKS/MINH subset test
-        df_small = df[features].loc[::desample_amt,:]        
+        df_small = df[features].loc[::desample_amt,:]   
+        n = int(df.shape[0]/100)
         X_nd = df_small.values
         #X_nd = df[features].values[::desample_amt,:]
         X_nd = beta.Beta.rescale_data(X_nd/5)
         self.__init__(X_nd)
         
         loglike_list = []
+        bic_list = []
         M = 5  # number of times to run em 
         
         for iter_num in range(1, M+1):
             means, sigmas, pis, log_like = mm.em_v(k, n_iter)
             # calculate BIC from loglike, k, and d
             # MINH calculate BIC = # you need to capture n from the part of the code that does desampling
+            #BIC formula: BIC = -2LL + n_params * logN
+            BIC = (-2)*log_like + math.log(n)*4*k
             loglike_list.append(log_like)
-            print('\nmeans:\n', means)
-            print('\nmeans:\n', sigmas)
-            print('\nmeans:\n', pis)
-            if __debug__:
-                plt.figure()
-                title = 'title: ' + str(log_like) + ',  Min_ab:' + \
-                    str(beta.Beta.MIN_AB)
-                mm.plot_means(means, sigmas, pis)
-                plt.title(title)
+            bic_list.append(BIC)
+            #print('\nmeans:\n', means)
+            #print('\nmeans:\n', sigmas)
+            #print('\nmeans:\n', pis)
+            #if __debug__:
+            #    plt.figure()
+            #    title = 'title: ' + str(log_like) + ',  Min_ab:' + \
+            #        str(beta.Beta.MIN_AB)
+            #    mm.plot_means(means, sigmas, pis)
+            #    plt.title(title)
             bd = beta.Beta()
             a_k, b_k = np.empty(k, dtype=object), np.empty(k, dtype=object)
             for k_i in range(k):
@@ -621,13 +628,17 @@ class Mm():
                                     columns=features+['sigmas','pis','as','bs'])
             df_clusters.to_csv(outfile + '_' + str(k) + '_' + 'iternum' + \
                                str(iter_num) + '.csv',index=False)
-            if __debug__:
-                plt.savefig(outfile + '_' + str(k) + '_iternum' + \
-                            str(iter_num) + '.png')
+            #if __debug__:
+            #    plt.savefig(outfile + '_' + str(k) + '_iternum' + \
+            #                str(iter_num) + '.png')
                 
         df_loglike = pd.DataFrame(data = loglike_list)
+        df_bic = pd.DataFrame(data = bic_list)
         df_loglike.to_csv(outfile + '_loglike' + '_' + str(k) + '.csv', 
                           index =  False)
+        df_bic.to_csv(outfile+ '_bic'+'_'+str(k)+'.csv', index = False)
+        
+        return max(bic_list)
         
 
     
@@ -1023,16 +1034,29 @@ if __name__ == '__main__':
             unittest.main()
     else:
         mm = Mm()
+        au_list = ['AU01_r', 'AU02_r', 'AU04_r', 'AU05_r', 'AU06_r', 'AU07_r', 'AU09_r',\
+       'AU10_r', 'AU12_r', 'AU14_r', 'AU15_r', 'AU17_r', 'AU20_r', 'AU23_r',\
+       'AU25_r', 'AU26_r', 'AU45_r']
+        combinations = itertools.combinations(au_list,2)
+        combinations_list = list(combinations)
         #MINH paste in brute force subset search of features for loop here
-        for k in range(2,16):
-            mm.cluster(
-                infile='all_frames.pkl.xz', 
-                #infile='desampled_au6_au12.csv', 
-                outfile='bmm_clusters_au6', 
-                #MINH change outfile to include features
-                #features=['AU06_r','AU12_r'], 
-                features=['AU06_r'], 
-                k=k, n_iter=300)        
+        for i in range(0, len(combinations_list)):
+            mfeatures = [combinations_list[i][0],combinations_list[i][1]]
+            moutfile = 'bmm_clusters_'+combinations_list[i][0]+combinations_list[i][1]
+            bic_list = []
+            for k in range(2,16):
+                best_bic = mm.cluster(
+                    infile='all_frames.pkl.xz', 
+                    #infile='desampled_au6_au12.csv', 
+                    outfile=moutfile, 
+                    #MINH change outfile to include features
+                    #features=['AU06_r','AU12_r'], 
+                    features=mfeatures, 
+                    k=k, n_iter=100)
+                bic_list.append(best_bic)
+            best_bic_score = max(bic_list)
+            print(combinations_list[i][0]+'_'+combinations_list[i][1]+':',best_bic_score)
+                
 
 
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
