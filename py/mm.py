@@ -46,6 +46,22 @@ import time
 import cProfile
 import pstats 
 
+
+
+#--------------------------------------------------------------------------
+def bic(num_samples, num_params, log_like):
+    """ formula: 
+            BIC = -2log_like + parameter_cost
+            parameter_cost = log(num_samples) * num_parameters
+        higher log_like is better
+        lower parameter_cost is better
+        lower BIC is better 
+    """
+    parameter_cost = math.log(num_samples) * num_params
+    BIC = (-2)*log_like + parameter_cost 
+    return BIC
+
+
 #============================================================================
 class Mm():
     """ Mixture Model class which implements both k-means and EM Gaussian
@@ -567,6 +583,7 @@ class Mm():
         # TODO        
         pass
 
+
     #--------------------------------------------------------------------------
     def cluster(self, infile='all_frames.pkl.xz', 
                 outfile='bmm_clusters', 
@@ -601,9 +618,7 @@ class Mm():
         for iter_num in range(1, M+1):
             means, sigmas, pis, log_like = mm.em_v(k, n_iter)
             # calculate BIC from loglike, k, and d
-            # MINH calculate BIC = # you need to capture n from the part of the code that does desampling
-            #BIC formula: BIC = -2LL + n_params * logN
-            BIC = (-2)*log_like + math.log(n)*4*k
+            BIC = bic(n, k*4, log_like)
             loglike_list.append(log_like)
             bic_list.append(BIC)
             #print('\nmeans:\n', means)
@@ -638,7 +653,8 @@ class Mm():
                           index =  False)
         df_bic.to_csv(outfile+ '_bic'+'_'+str(k)+'.csv', index = False)
         
-        return max(bic_list)
+        best_bic = np.min(bic_list)
+        return best_bic
         
 
     
@@ -1040,7 +1056,10 @@ if __name__ == '__main__':
         combinations = itertools.combinations(au_list,2)
         combinations_list = list(combinations)
         #MINH paste in brute force subset search of features for loop here
+        scores_for_each_au_pair = []
         for i in range(0, len(combinations_list)):
+            au_first = combinations_list[i][0]
+            au_second = combinations_list[i][1]
             mfeatures = [combinations_list[i][0],combinations_list[i][1]]
             moutfile = 'bmm_clusters_'+combinations_list[i][0]+combinations_list[i][1]
             bic_list = []
@@ -1054,11 +1073,15 @@ if __name__ == '__main__':
                     features=mfeatures, 
                     k=k, n_iter=100)
                 bic_list.append(best_bic)
-            best_bic_score = max(bic_list)
-            print(combinations_list[i][0]+'_'+combinations_list[i][1]+':',best_bic_score)
-                
-
-
+            best_bic_score_k = np.argmin(bic_list)
+            best_bic_score = np.min(bic_list)
+            print(combinations_list[i][0]+'_'+combinations_list[i][1]+':',
+                  best_bic_score, ', k=', best_bic_score_k)
+            scores_for_each_au_pair.append([au_first, au_second, best_bic_score_k, best_bic_score])
+ 
+        df = pd.DataFrame(scores_for_each_au_pair)
+        df.to_csv('minhs_mixture_madness.csv', header=['AU_first','AU_second','k','BIC'],
+                  index=False)
         #suite = unittest.defaultTestLoader.loadTestsFromName('__main__')
         #suite.debug()        
         
