@@ -272,8 +272,8 @@ class Mm():
         # TODO: create a vectorized assert
         #assert(abs(np.sum(resp_kn[:,x_i]) -1) < 0.001)   
 
-        #print('\n------------\nLOGLIK: ', 
-        #      logsumexp(prob_masses_kn,axis=0).sum())
+        print('\n------------\nLOGLIK: ', 
+              logsumexp(prob_masses_kn,axis=0).sum())
 
 
     #--------------------------------------------------------------------------
@@ -439,8 +439,8 @@ class Mm():
         means_kd, sigmas_kdd, pis_k   = parameters
         resp_kn, prob_masses_kn, counts_k  = varz
         
-        #if __debug__:
-        #    self.plot_means(means_kd, sigmas_kdd, pis_k)
+        if __debug__:
+            self.plot_means(means_kd, sigmas_kdd, pis_k)
         
         #-----------------------------------------------------
         # ITERATION LOOP
@@ -474,7 +474,7 @@ class Mm():
                 title = 'title: ' + str(log_like) + ',  Min_ab:' + \
                     str(beta.Beta.MIN_AB)                  
                 
-                #self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
+                self.plot_means(means_kd, sigmas_kdd, pis_k, None, title)
                                 
         log_like = logsumexp(prob_masses_kn,axis=0).sum()           
 
@@ -592,7 +592,7 @@ class Mm():
         """ Loads data from infile, runs BMM, writes clusters to outfile.
         
         """
-        print("\n...clustering(...)")
+        #print("\n...clustering(...)")
         if '.csv' in infile:
             df = pd.read_csv(infile)
         else:
@@ -621,15 +621,15 @@ class Mm():
             BIC = bic(n, k*4, log_like)
             loglike_list.append(log_like)
             bic_list.append(BIC)
-            #print('\nmeans:\n', means)
-            #print('\nmeans:\n', sigmas)
-            #print('\nmeans:\n', pis)
-            #if __debug__:
-            #    plt.figure()
-            #    title = 'title: ' + str(log_like) + ',  Min_ab:' + \
-            #        str(beta.Beta.MIN_AB)
-            #    mm.plot_means(means, sigmas, pis)
-            #    plt.title(title)
+            print('\nmeans:\n', means)
+            print('\nmeans:\n', sigmas)
+            print('\nmeans:\n', pis)
+            if __debug__:
+                plt.figure()
+                title = 'title: ' + str(log_like) + ',  Min_ab:' + \
+                    str(beta.Beta.MIN_AB)
+                mm.plot_means(means, sigmas, pis)
+                plt.title(title)
             bd = beta.Beta()
             a_k, b_k = np.empty(k, dtype=object), np.empty(k, dtype=object)
             for k_i in range(k):
@@ -1050,34 +1050,38 @@ if __name__ == '__main__':
             unittest.main()
     else:
         mm = Mm()
-        au_list = ['AU01_r', 'AU02_r', 'AU04_r', 'AU05_r', 'AU06_r', 'AU07_r', 'AU09_r',\
-       'AU10_r', 'AU12_r', 'AU14_r', 'AU15_r', 'AU17_r', 'AU20_r', 'AU23_r',\
-       'AU25_r', 'AU26_r', 'AU45_r']
+        #au_list = ['AU01_r', 'AU02_r', 'AU04_r', 'AU05_r', 'AU06_r', 'AU07_r', 'AU09_r',\
+       #'AU10_r', 'AU12_r', 'AU14_r', 'AU15_r', 'AU17_r', 'AU20_r', 'AU23_r',\
+       #'#AU25_r', 'AU26_r', 'AU45_r']
+        au_list = ['AU06_r','AU12_r']
         combinations = itertools.combinations(au_list,2)
         combinations_list = list(combinations)
         #MINH paste in brute force subset search of features for loop here
         scores_for_each_au_pair = []
         for i in range(0, len(combinations_list)):
-            au_first = combinations_list[i][0]
-            au_second = combinations_list[i][1]
-            mfeatures = [combinations_list[i][0],combinations_list[i][1]]
-            moutfile = 'bmm_clusters_'+combinations_list[i][0]+combinations_list[i][1]
-            bic_list = []
-            for k in range(2,16):
-                best_bic = mm.cluster(
-                    infile='all_frames.pkl.xz', 
-                    #infile='desampled_au6_au12.csv', 
-                    outfile=moutfile, 
-                    #MINH change outfile to include features
-                    #features=['AU06_r','AU12_r'], 
-                    features=mfeatures, 
-                    k=k, n_iter=100)
-                bic_list.append(best_bic)
-            best_bic_score_k = np.argmin(bic_list)
-            best_bic_score = np.min(bic_list)
-            print(combinations_list[i][0]+'_'+combinations_list[i][1]+':',
-                  best_bic_score, ', k=', best_bic_score_k)
-            scores_for_each_au_pair.append([au_first, au_second, best_bic_score_k, best_bic_score])
+            try:
+                au_first = combinations_list[i][0]
+                au_second = combinations_list[i][1]
+                mfeatures = [combinations_list[i][0],combinations_list[i][1]]
+                moutfile = 'bmm_clusters_'+combinations_list[i][0]+combinations_list[i][1]
+                bic_list = []
+                for k in range(5,16):
+                    best_bic = mm.cluster(
+                        infile='all_frames.pkl.xz', 
+                        #infile='desampled_au6_au12.csv', 
+                        outfile=moutfile, 
+                        #MINH change outfile to include features
+                        #features=['AU06_r','AU12_r'], 
+                        features=mfeatures, 
+                        k=k, n_iter=100)
+                    bic_list.append(best_bic)
+                best_bic_score_k = np.argmin(bic_list)
+                best_bic_score = np.min(bic_list)
+                print(combinations_list[i][0]+'_'+combinations_list[i][1]+':',
+                      best_bic_score, ', k=', best_bic_score_k)
+                scores_for_each_au_pair.append([au_first, au_second, best_bic_score_k, best_bic_score])
+            except:
+                continue
  
         df = pd.DataFrame(scores_for_each_au_pair)
         df.to_csv('minhs_mixture_madness.csv', header=['AU_first','AU_second','k','BIC'],
